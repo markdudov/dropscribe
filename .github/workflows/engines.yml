@@ -47,7 +47,7 @@ jobs:
       # This repository, not whisper.cpp. The tag `engines-<ref>` is created
       # here and has to point at a commit of THIS repo; the checkout is also
       # what gives the release step a repository context.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Clone whisper.cpp at the requested ref
         run: |
