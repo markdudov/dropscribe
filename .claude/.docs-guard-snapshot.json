@@ -16,9 +16,9 @@
    "size": 18698
   },
   "docs/architecture/overview.md": {
-   "mtime_ns": 1788013023257278401,
-   "sha1": "d252381c3138d1345c69286d45940d9c414fb67e",
-   "size": 21231
+   "mtime_ns": 1788015957912958168,
+   "sha1": "83dcd6c1a7815a9d160e4212a602e74536c1d4f3",
+   "size": 22854
   },
   "docs/architecture/state-and-store.md": {
    "mtime_ns": 1788015276985765852,
@@ -261,9 +261,9 @@
    "size": 7283
   },
   "src/index.css": {
-   "mtime_ns": 1788015205051707159,
-   "sha1": "8323fc6485485ee3c0cb4eb1e22e1b523b72a17a",
-   "size": 8687
+   "mtime_ns": 1788015901537995463,
+   "sha1": "fad3614d7df82ba40e3e2aa6d142b0686aa261e7",
+   "size": 9926
   },
   "src/index.html": {
    "mtime_ns": 1788012571815599634,
@@ -281,9 +281,9 @@
    "size": 1142
   },
   "src/ui/App.tsx": {
-   "mtime_ns": 1788014525339670599,
-   "sha1": "1d833db815d6d6799796e935bf332dbaf23289a2",
-   "size": 8363
+   "mtime_ns": 1788015889192701949,
+   "sha1": "a860f32ba7e576f1c92d2acb5713e3c5c7b194bd",
+   "size": 8915
   },
   "src/ui/DropZone.tsx": {
    "mtime_ns": 1788014581078312112,
@@ -402,6 +402,6 @@
   }
  },
  "last_blocked": null,
- "taken_at": 1788015845.0246139,
+ "taken_at": 1788016093.780442,
  "version": 1
 }

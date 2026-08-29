@@ -214,3 +214,25 @@ The confirmation is in-place rather than a modal on purpose: a modal steals focu
 and asks about something that is already under the pointer. `Cancel` sits beside
 the confirm rather than relying on a timeout, so a user who meant something else
 always has a target.
+
+
+## The target picker is a column, not a scrolling box
+
+`TargetPicker`'s popover used to be one element with `max-h` and
+`overflow-y-auto`, which meant the empty-state footer — the only way out of a
+picker where nothing is installed and no key is stored — scrolled with the model
+list and was clipped by the panel's own height. A user with nothing set up saw
+half a button.
+
+It is now a flex column: the groups scroll, the footer is pinned under them and
+is always whole. `overflow-hidden` on the panel is what makes the rounded corners
+clip the scrolling child, and `min-h-0` on that child is what lets it shrink
+inside the column rather than forcing the panel past its `max-h`.
+
+The footer's button is `.btn-primary-quiet`, not `.btn-primary`. The panel
+already carries `shadow-modal`, and a halo on top of that is shadow over shadow —
+it makes the button look like it is floating off the surface it belongs to.
+
+Which edge the popover hangs from follows `.header-controls`: `.popover-anchor`
+in `index.css` pins it to the same side, so it does not open off the left edge of
+the window on Windows, where the controls sit left.

@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Check, ChevronDown, Cloud, Cpu } from 'lucide-react';
+import { Check, ChevronDown, Cloud, Cpu, Settings2 } from 'lucide-react';
 
 import type { ProviderState } from '../../electron/api-types';
 import type { TranscribeTarget } from '../../electron/shared/jobs';
@@ -212,8 +212,23 @@ export function TargetPicker(): ReactElement {
         <div
           role="listbox"
           aria-label="Transcribe with"
-          className="animate-fade-up absolute right-0 z-30 mt-2 max-h-[26rem] w-[24rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-modal dark:border-white/[0.07] dark:bg-ink-850"
+          /*
+            A column, not a scrolling box.
+
+            The whole panel used to scroll, which meant the empty-state footer —
+            the only way out of a picker where nothing is installed — scrolled
+            with the list and was clipped by the panel's own max height. The list
+            is now the only thing that scrolls; the footer is pinned under it and
+            is always whole.
+
+            `overflow-hidden` on the panel is what makes the rounded corners clip
+            the scrolling child, and `min-h-0` on that child is what lets it
+            shrink inside a flex column instead of forcing the panel taller than
+            its max.
+          */
+          className="popover-anchor animate-fade-up absolute z-30 mt-2 flex max-h-[32rem] w-[24rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-modal dark:border-white/[0.07] dark:bg-ink-850"
         >
+          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {groups.map((group) => (
             <div key={group.key} role="group" aria-labelledby={`target-group-${group.key}`}>
               <p
@@ -276,22 +291,37 @@ export function TargetPicker(): ReactElement {
               })}
             </div>
           ))}
+          </div>
 
           {!anyChoice ? (
             // The honest empty state. A picker with six greyed-out rows and no
             // way forward is a dead end; this is the way out of it.
-            <div className="mt-1 border-t border-slate-200 px-2 py-3 dark:border-white/[0.06]">
-              <p className="text-sm text-slate-600 dark:text-slate-300">
+            <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-3.5 py-3.5 dark:border-white/[0.06] dark:bg-white/[0.03]">
+              <p className="text-[0.8125rem] leading-relaxed text-slate-600 dark:text-slate-300">
                 Nothing is ready yet. Download a local model, or add a provider key.
               </p>
+              {/*
+                Full width and centred, because it is the only action in the
+                panel and a button that shares a row with nothing should not look
+                as though it does. The tinted strip behind it separates the way
+                out from the list of things that are not yet choices.
+              */}
               <button
                 type="button"
                 onClick={() => {
                   close();
                   openSettings('models');
                 }}
-                className="btn-primary mt-2.5"
+                /*
+                  The quiet primary, not the glowing one. This button sits inside
+                  a panel that already carries `shadow-modal`, and a halo on top
+                  of that is shadow over shadow — it makes the button look like
+                  it is floating off the surface it belongs to. The flat brand
+                  fill is the more confident answer at full width.
+                */
+                className="btn-primary-quiet mt-3 flex w-full items-center justify-center gap-2"
               >
+                <Settings2 className="h-4 w-4" aria-hidden="true" />
                 Open settings
               </button>
             </div>

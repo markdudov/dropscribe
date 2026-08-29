@@ -195,6 +195,23 @@
   }
 
   /*
+    A popover hangs from the edge its trigger is nearest.
+
+    The target picker lives at whichever end `.header-controls` put it, so a
+    hard-coded `right-0` would open the menu off the left edge of the window on
+    Windows. Same attribute, same reason, one rule.
+  */
+  .popover-anchor {
+    inset-inline-end: 0;
+  }
+
+  [data-platform='win32'] .popover-anchor,
+  [data-platform='linux'] .popover-anchor {
+    inset-inline-end: auto;
+    inset-inline-start: 0;
+  }
+
+  /*
     The three surfaces every panel in the app is built from, so a card in the
     settings modal and a job row in the list cannot drift apart.
 
