@@ -49,7 +49,7 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [
   {
     id: 'deepinfra',
     label: 'DeepInfra',
-    blurb: 'Whisper large-v3 and large-v3-turbo, plus Voxtral and Qwen3-ASR. Billed per second of audio.',
+    blurb: 'Whisper large-v3 and large-v3-turbo, plus Voxtral and Qwen3-ASR.',
     keyPlaceholder: 'Bearer token from the DeepInfra dashboard',
     keyUrl: 'https://deepinfra.com/dash/api_keys',
     docsUrl: 'https://docs.deepinfra.com/apis/speech',

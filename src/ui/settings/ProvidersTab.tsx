@@ -277,7 +277,7 @@ function ProviderCard({ descriptor, state }: { descriptor: ProviderDescriptor; s
         </div>
         {/* `whitespace-nowrap` is not cosmetic here: "Get a key" is three short
             words and the flex row will happily break it across two lines when
-            the provider's blurb is long, which is what DeepInfra's does. */}
+            the provider's blurb is long, which is what OpenRouter's does. */}
         <button
           type="button"
           className={`${GHOST} shrink-0 whitespace-nowrap`}

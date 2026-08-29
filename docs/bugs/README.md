@@ -111,6 +111,7 @@ already spent once.
 | [0002](./0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md) | A cloud upload failed instantly with "Encoder not found" | ffmpeg | the vendored macOS ffmpeg has neither `libopus` nor `libmp3lame`, and both rungs of the fallback asked for them | 2026-08-29 |
 
 | [0003](./0003-subtitle-cues-drew-three-lines.md) | Subtitle cues drew three lines, and ended mid-phrase | shared/subtitles | the accumulator counted characters where it had to ask whether the cue could be drawn | 2026-08-29 |
+| [0004](./0004-collapsed-word-timings-made-one-millisecond-cues.md) | Cues one millisecond long, two of them sharing an interval | shared/subtitles | whisper stacks a run of words on one timestamp, and the gap pass crushed cues to `startMs + 1` rather than keep their floor | 2026-08-29 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:

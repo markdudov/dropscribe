@@ -10,7 +10,7 @@
  * the wrong place to keep that.
  */
 
-import type { Cue, SegmentationOptions } from '../electron/shared/subtitles';
+import type { Cue, SegmentationOptions, TimedWord } from '../electron/shared/subtitles';
 import {
   DEFAULT_SEGMENTATION,
   formatTimestamp,
@@ -470,5 +470,149 @@ describe('resegment — cue length, the Netflix-style rules', () => {
     expect(cues.length).toBeGreaterThan(1);
     const last = cues[cues.length - 1];
     expect(last?.lines.join(' ')).toBe('yes');
+  });
+});
+
+/*
+ * ── Collapsed word timings ────────────────────────────────────────────────
+ *
+ * WHAT THIS PINS, and how it was found. Not by reading the code: by running a
+ * 110-second recording of one sentence repeated sixty times through the real
+ * app and reading the SRT it produced.
+ *
+ *     7
+ *     00:00:59,920 --> 00:00:59,921
+ *     sentence number one, this
+ *     is sentence number one,
+ *
+ *     8
+ *     00:00:59,920 --> 00:00:59,921
+ *     this is sentence number one,
+ *
+ * Two cues, one millisecond each, identical timings, at a configured minimum
+ * of one second. Thirty-two of that transcript's sixty words carried
+ * `startMs === endMs`, and words 12 through 23 all carried the SAME timestamp:
+ * whisper's DTW alignment collapses on highly repetitive audio, and hands back
+ * a run of words stacked on one instant.
+ *
+ * The engine is not at fault and cannot be fixed here — a recogniser is allowed
+ * to be unsure where a word sits. What is at fault is `applyTiming`'s gap pass:
+ *
+ *     const latestEnd = next.startMs - opts.minGapMs;
+ *     if (cue.endMs > latestEnd) cue.endMs = Math.max(cue.startMs + 1, latestEnd);
+ *
+ * When the next cue starts on the same millisecond, `latestEnd` lands BEFORE
+ * this cue's own start, the `startMs + 1` floor fires, and a cue the extension
+ * pass had just widened to a readable second is crushed back to one
+ * millisecond. The floor exists to stop a negative duration, and it does — by
+ * abandoning `minDurationMs` without saying so.
+ *
+ * A one-millisecond cue does not render. Two cues sharing an interval is worse
+ * than either alone: players stack them, drop one, or refuse the file.
+ */
+describe('cues built from words the engine stacked on one instant', () => {
+  /** A run of words all carrying the same timestamp, as whisper really emits. */
+  function collapsed(texts: readonly string[], atMs: number): TimedWord[] {
+    return texts.map((text) => ({ text, startMs: atMs, endMs: atMs }));
+  }
+
+  const words: TimedWord[] = [
+    { text: 'A', startMs: 0, endMs: 400 },
+    { text: 'clean', startMs: 420, endMs: 900 },
+    { text: 'opening.', startMs: 920, endMs: 1400 },
+    // Everything below lands on one instant, which is the whole point.
+    ...collapsed(
+      ('this is sentence number one, this is sentence number one, ' +
+       'this is sentence number one, this is sentence number one, ' +
+       'this is sentence number one.').split(' '),
+      59_920,
+    ),
+  ];
+
+  const cues = resegment(
+    [{ startMs: 0, endMs: 60_000, text: words.map((w) => w.text).join(' '), words }],
+    { mediaDurationMs: 110_850 },
+  );
+
+  it('gives every cue at least the configured minimum duration', () => {
+    const short = cues.filter((c) => c.endMs - c.startMs < DEFAULT_SEGMENTATION.minDurationMs);
+    expect(short.map((c) => `${c.startMs}-${c.endMs} ${c.lines.join(' / ')}`)).toEqual([]);
+  });
+
+  it('never emits two cues with the same interval', () => {
+    const seen = cues.map((c) => `${c.startMs}-${c.endMs}`);
+    expect(seen).toEqual([...new Set(seen)]);
+  });
+
+  it('keeps cues strictly ordered and non-overlapping', () => {
+    const overlaps: string[] = [];
+    for (let i = 1; i < cues.length; i += 1) {
+      const previous = cues[i - 1];
+      const current = cues[i];
+      if (!previous || !current) continue;
+      if (current.startMs < previous.endMs) {
+        overlaps.push(`${previous.startMs}-${previous.endMs} overlaps ${current.startMs}-${current.endMs}`);
+      }
+    }
+    expect(overlaps).toEqual([]);
+  });
+
+  it('still ends within the media', () => {
+    for (const cue of cues) expect(cue.endMs).toBeLessThanOrEqual(110_850);
+  });
+});
+
+/*
+ * ── The cue the media clamp left unreadable ───────────────────────────────
+ *
+ * Bug 0001 established that no cue may end after the media does, and the clamp
+ * that enforces it runs last, after every pass that could push a cue back out.
+ * That is still right. What it did not consider is what the clamp leaves
+ * behind: a sign-off that lands in the final fraction of a second gets its end
+ * cut to the media end and keeps its start, and comes out 120 ms long — under a
+ * configured minimum of a full second, and far too short to read.
+ *
+ * The floor cannot be met by moving the end, because there is nothing after the
+ * end. It can be met by moving the START earlier, into silence the cue is not
+ * competing with anyone for — which is what a subtitler does, and what the
+ * timing rules already do everywhere else. The previous cue's end plus the
+ * minimum gap is the limit.
+ */
+describe('a cue that the media clamp would leave too short to read', () => {
+  const cues = resegment(
+    [
+      { startMs: 55_000, endMs: 56_600, text: 'That is all for today.', words: [
+        { text: 'That', startMs: 55_000, endMs: 55_300 },
+        { text: 'is', startMs: 55_320, endMs: 55_500 },
+        { text: 'all', startMs: 55_520, endMs: 55_900 },
+        { text: 'for', startMs: 55_920, endMs: 56_100 },
+        { text: 'today.', startMs: 56_120, endMs: 56_600 },
+      ] },
+      // The sign-off falls in the last 120 ms of the file, after three seconds
+      // of silence there is room to borrow from.
+      { startMs: 59_880, endMs: 60_000, text: 'Thanks.', words: [
+        { text: 'Thanks.', startMs: 59_880, endMs: 60_000 },
+      ] },
+    ],
+    { mediaDurationMs: 60_000 },
+  );
+
+  it('reaches the minimum duration by starting earlier', () => {
+    const last = cues[cues.length - 1];
+    expect(last).toBeDefined();
+    expect(last!.endMs - last!.startMs).toBeGreaterThanOrEqual(DEFAULT_SEGMENTATION.minDurationMs);
+  });
+
+  it('still ends exactly at the media end, never past it', () => {
+    for (const cue of cues) expect(cue.endMs).toBeLessThanOrEqual(60_000);
+    expect(cues[cues.length - 1]!.endMs).toBe(60_000);
+  });
+
+  it('does not reach back into the cue before it', () => {
+    for (let i = 1; i < cues.length; i += 1) {
+      expect(cues[i]!.startMs).toBeGreaterThanOrEqual(
+        cues[i - 1]!.endMs + DEFAULT_SEGMENTATION.minGapMs,
+      );
+    }
   });
 });

@@ -123,7 +123,7 @@ you never reach a failed job because of one mistyped character in a key.
 
 | Provider | What it offers |
 | --- | --- |
-| **DeepInfra** | Whisper large-v3 and large-v3-turbo, plus Voxtral and Qwen3-ASR. Billed per second of audio. |
+| **DeepInfra** | Whisper large-v3 and large-v3-turbo, plus Voxtral and Qwen3-ASR. |
 | **Deepgram** | Nova-3 and Nova-2. Fast, with strong diarization and 100+ languages. |
 | **ElevenLabs** | Scribe v2. 90+ languages, speaker diarization and audio-event tags. |
 | **OpenRouter** | One key for many vendors' audio models, routed through a single endpoint. |
