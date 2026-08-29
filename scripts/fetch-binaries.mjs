@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import {
@@ -54,6 +55,75 @@ const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const say = (line) => process.stdout.write(`${line}\n`);
 
 /**
+ * Four tries, doubling from 2s.
+ *
+ * The release assets come from third-party hosts, and the first run of the
+ * release workflow died on a single `HTTP 504` from BtbN's CDN — halfway
+ * through `npm ci`, before anything had been built. Nothing was wrong with the
+ * URL, the pin or the network; the far end was briefly unhappy. Without this,
+ * every release is a coin toss on four separate large downloads staying up for
+ * the same ninety seconds.
+ *
+ * `describeDownloadFailure` below has been telling the reader "retrying usually
+ * works" since the day it was written, which is the tell: the script knew what
+ * to do and made a human do it.
+ */
+const DOWNLOAD_ATTEMPTS = 4;
+const RETRY_BASE_MS = 2000;
+
+/** An HTTP status that reached us, kept as a number so retryability can be judged. */
+export class HttpStatusError extends Error {
+  constructor(status) {
+    super(`HTTP ${status}`);
+    this.status = status;
+  }
+}
+
+/**
+ * Whether trying the same request again could plausibly give a different
+ * answer.
+ *
+ * A 404 means the manifest points at an asset that is not there, and asking
+ * four times turns a clear error into a slow one. 5xx, 408 and 429 are the far
+ * end saying "not now"; a stalled socket and fetch's own `TypeError` are the
+ * network. Those are worth another go.
+ */
+export function isRetryable(error) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return true;
+  if (error instanceof HttpStatusError) {
+    return error.status >= 500 || error.status === 408 || error.status === 429;
+  }
+  return error instanceof TypeError;
+}
+
+/**
+ * Run `attempt` until it works, it fails for a reason repetition cannot fix, or
+ * the attempts run out. Every retry is announced, because a job that silently
+ * takes fourteen seconds longer teaches nobody that the CDN is flaky.
+ *
+ * `wait` is injectable for the same reason `read` is in binaries.mjs: so a test
+ * can prove the fourth attempt happens without spending fourteen seconds
+ * proving it. Fake timers are not an option here — the sleep comes from
+ * `node:timers/promises`, which they do not replace, so a test that faked the
+ * clock would sit through the real backoff and time out.
+ */
+export async function withRetries(url, attempt, { wait = sleep } = {}) {
+  let lastError;
+  for (let n = 1; n <= DOWNLOAD_ATTEMPTS; n += 1) {
+    try {
+      return await attempt();
+    } catch (error) {
+      lastError = error;
+      if (n === DOWNLOAD_ATTEMPTS || !isRetryable(error)) break;
+      const delay = RETRY_BASE_MS * 2 ** (n - 1);
+      say(`    ⟳ ${error.message ?? error} — retrying in ${delay / 1000}s (attempt ${n + 1} of ${DOWNLOAD_ATTEMPTS})`);
+      await wait(delay);
+    }
+  }
+  throw describeDownloadFailure(url, lastError);
+}
+
+/**
  * Turn whatever fetch threw into a sentence that names the actual problem.
  *
  * The raw abort surfaces as a bare "This operation was aborted", which reads
@@ -73,13 +143,11 @@ function describeDownloadFailure(url, error) {
 
 /** A small file — a licence text — straight into memory. */
 async function downloadBuffer(url) {
-  try {
+  return withRetries(url, async () => {
     const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new HttpStatusError(response.status);
     return Buffer.from(await response.arrayBuffer());
-  } catch (error) {
-    throw describeDownloadFailure(url, error);
-  }
+  });
 }
 
 /**
@@ -93,14 +161,16 @@ async function downloadBuffer(url) {
  * tar.
  */
 async function downloadToFile(url, file) {
-  try {
+  // `createWriteStream` truncates, so a retry after a transfer that died
+  // half-written starts from an empty file rather than appending to a corpse.
+  // The hash check downstream would catch that anyway; this makes sure it never
+  // has to.
+  await withRetries(url, async () => {
     const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new HttpStatusError(response.status);
     if (!response.body) throw new Error('the response carried no body');
     await pipeline(Readable.fromWeb(response.body), createWriteStream(file));
-  } catch (error) {
-    throw describeDownloadFailure(url, error);
-  }
+  });
 }
 
 /**

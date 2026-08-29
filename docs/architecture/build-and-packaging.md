@@ -425,3 +425,22 @@ The ceiling here is a certificate in CI, not a config change: give the workflow
 `CSC_LINK` and `CSC_KEY_PASSWORD` and electron-builder prefers the real identity
 over `-` with nothing else edited. Notarization needs an App Store Connect key
 on top of that and `mac.notarize: true`.
+
+## The fetcher retries, because the hosts are not ours
+
+`scripts/fetch-binaries.mjs` pulls four large assets from two third-party
+release hosts, and the first run of the release workflow died on one `HTTP 504`
+from BtbN's CDN — inside `npm ci`, before anything had been built. Nothing was
+wrong with the URL, the pin or the network.
+
+Four attempts, doubling from two seconds, and only for failures repetition can
+fix: 5xx, 408, 429, a stalled socket, and fetch's own `TypeError`. A 404 fails
+on the first try, because it means the manifest points at an asset that is not
+there and asking four times turns a clear error into a slow one.
+
+The backoff is injectable (`withRetries(url, attempt, { wait })`), for the same
+reason `binariesProblems` takes a `read`: so the test that proves the fourth
+attempt happens does not spend fourteen seconds proving it. Faking the clock
+does not work here — the sleep comes from `node:timers/promises`, which
+`vi.useFakeTimers()` does not replace, so the test would sit through the real
+backoff and time out on exactly the case worth covering.
