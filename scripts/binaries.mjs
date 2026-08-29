@@ -9,9 +9,8 @@
  * `postinstall`, before anything has been compiled, and on a fresh clone where
  * `node_modules` is half-written. Node built-ins and the system `tar` only.
  */
-import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -67,7 +66,12 @@ export const NOTICE_NAME = 'THIRD-PARTY-NOTICES.md';
  * wrong-architecture file exists, is executable, and reports `present: true`
  * right up until `posix_spawn` returns `EBADARCH` on a user's machine.
  *
- * @param {Buffer} head first ~256 bytes of the file
+ * @param {Buffer} head the file's bytes, from the start. It must reach past the
+ *   PE header, and the only way to know where that is, is to read the file's
+ *   own `e_lfanew` — so callers pass the whole thing rather than a prefix they
+ *   guessed. A prefix that stops short answers `null`, which the gate turns
+ *   into a refusal; that is the safe direction, and it is also how a valid file
+ *   was refused for a whole release cycle. See test/node/binary-arch.test.ts.
  * @returns {'x64'|'arm64'|null}
  */
 export function binaryArch(head) {
@@ -100,14 +104,14 @@ export function binaryArch(head) {
  */
 export function readBinaryAt(file) {
   if (!existsSync(file)) return null;
-  const head = Buffer.alloc(256);
-  const fd = openSync(file, 'r');
-  try {
-    readSync(fd, head, 0, 256, 0);
-  } finally {
-    closeSync(fd);
-  }
-  return { sha256: sha256(readFileSync(file)), arch: binaryArch(head) };
+  // One read, and the whole file, because the hash below needs all of it
+  // anyway. The 256-byte prefix this used to take first was not a saving — it
+  // was read in ADDITION to this — and it silently blinded the check to every
+  // PE whose DOS stub is longer than that: the whisper.cpp executables and DLLs
+  // put their header at 0x100 to 0x118, so fifteen of the seventeen Windows
+  // binaries measured as `null` and the release could not package at all.
+  const bytes = readFileSync(file);
+  return { sha256: sha256(bytes), arch: binaryArch(bytes) };
 }
 
 /** What is on disk for one tool in a development checkout, or null. */

@@ -386,3 +386,42 @@ the recommended sets found ten real things:
 
 `@electron-toolkit/tsconfig@2` and `@types/node@26` are majors that went in on
 their own; both typecheck clean against the two projects above.
+
+## Signing: ad-hoc is not decoration
+
+The macOS block in `electron-builder.yml` sets `identity: '-'`. Leaving it out
+does not produce "an unsigned app" — it produces a broken one, and the
+difference is what a user sees.
+
+With no `identity`, electron-builder looks for a Developer ID, finds none on a
+CI runner, logs `skipped macOS application code signing`, and ships the bundle
+carrying the *linker-signed ad-hoc signature that came with the Electron
+executable* — now describing a bundle that has since been renamed and had a few
+hundred megabytes of resources added to it:
+
+```
+Identifier=Electron    Info.plist=not bound    Sealed Resources=none
+codesign --verify → code has no resources but signature indicates they must be present
+```
+
+Gatekeeper's answer to a quarantined bundle in that state is **"DropScribe is
+damaged and can't be opened. You should move it to the Bin."** There is no
+"Open Anyway" for it, because Open Anyway is the override for an app that is
+validly signed by someone Apple has not vouched for — not for one whose
+signature does not verify. A first release in that state reads as malware.
+
+With `identity: '-'` the bundle is sealed properly and `codesign --verify
+--deep --strict` passes; `spctl` still rejects it, but as `Unnotarized
+Developer ID` / ad-hoc, which is the soft rejection **Privacy & Security → Open
+Anyway** exists to clear.
+
+The `-` qualifier is matched against the keychain first, so a developer who
+holds a Developer ID whose name happens to contain a hyphen will sign locally
+with the real certificate instead. That is a better outcome, not a bug, and it
+is why a local `npm run pack` is not a test of what CI produces. To reproduce
+the runner honestly, build against a keychain with no identities in it.
+
+The ceiling here is a certificate in CI, not a config change: give the workflow
+`CSC_LINK` and `CSC_KEY_PASSWORD` and electron-builder prefers the real identity
+over `-` with nothing else edited. Notarization needs an App Store Connect key
+on top of that and `mac.notarize: true`.

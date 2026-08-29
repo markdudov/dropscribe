@@ -69,9 +69,39 @@ mac:
   #
   # `hardenedRuntime` and the entitlements above are NOT dormant config waiting
   # for that day. They are applied by whatever signs the app — the ad-hoc
-  # signature macOS requires of arm64 binaries, or a Developer ID sitting in the
-  # keychain of whoever runs `npm run pack` locally.
+  # signature below, or a Developer ID sitting in the keychain of whoever runs
+  # `npm run pack` locally.
   notarize: false
+  # Ad-hoc. This is not a formality, and leaving it out does not produce "an
+  # unsigned app" — it produces a BROKEN one.
+  #
+  # With no `identity` key, electron-builder looks for a Developer ID, finds
+  # none on a CI runner, logs "skipped macOS application code signing" and packs
+  # the bundle as it is. What that leaves behind is the linker-signed ad-hoc
+  # signature that came with the Electron executable itself, now describing a
+  # bundle that has been renamed and had 300 MB of resources added to it:
+  #
+  #     Identifier=Electron     Info.plist=not bound     Sealed Resources=none
+  #     codesign --verify → "code has no resources but signature indicates
+  #                          they must be present"
+  #
+  # A signature that fails verification is worse than none. Gatekeeper's answer
+  # to a quarantined bundle in that state is "DropScribe is damaged and can't be
+  # opened. You should move it to the Bin" — which reads as malware, offers no
+  # way through, and is not what right-click → Open or Privacy & Security →
+  # Open Anyway are for. Those are for an app that is *validly* signed by
+  # someone Apple has not vouched for, which is what `-` produces.
+  #
+  # It requires com.apple.security.cs.disable-library-validation, which
+  # build/entitlements.mac.plist already carries: under hardenedRuntime an
+  # ad-hoc signature otherwise refuses to load anything not signed by the same
+  # team, and there is no team.
+  #
+  # This is the honest ceiling without a certificate in CI. It does not make the
+  # app notarized and does not make the first-launch warning go away. The day
+  # CSC_LINK and CSC_KEY_PASSWORD exist as repository secrets, electron-builder
+  # prefers the real identity over this and the line can go.
+  identity: '-'
   extraResources:
     # ${arch} is the TARGET architecture, never the build host: one dmg gets the
     # Intel binaries and the other the Apple-silicon ones, from a single

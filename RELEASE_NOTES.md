@@ -18,10 +18,12 @@ There is no Apple Developer certificate and no Windows code-signing certificate
 behind this build, so both operating systems will treat it as an unknown app the
 first time you open it.
 
-On macOS, double-clicking will be refused. Right-click the app in Finder and
-choose **Open**, then confirm — you only have to do this once. If your version
-of macOS refuses even that, open **System Settings → Privacy & Security**,
-scroll to the message about DropScribe being blocked, and choose **Open Anyway**.
+On macOS, double-clicking will be refused, with a message about Apple not being
+able to verify the app. Open **System Settings → Privacy & Security**, scroll
+down to the line about DropScribe being blocked, and choose **Open Anyway** —
+once, and never again for that copy. On macOS 14 and earlier you can instead
+right-click the app in Finder and choose **Open**; that shortcut stopped working
+in macOS 15, which is why it is not the first instruction here.
 
 On Windows, SmartScreen will show a blue "Windows protected your PC" box. Click
 **More info**, then **Run anyway**.
