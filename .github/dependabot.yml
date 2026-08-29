@@ -1,0 +1,69 @@
+# Dependency updates, grouped so that the weekly noise is one PR, not fifteen.
+#
+# The default Dependabot behaviour — one pull request per dependency — is a poor
+# fit for an Electron app, where a normal week produces a dozen patch bumps
+# across @types/*, eslint plugins and the vite toolchain, none of which is
+# individually interesting and every one of which costs a full CI run on two
+# runners. Grouping minor and patch into a single PR means one review, one CI
+# run, and a single revert target if the batch breaks the build.
+#
+# Majors are deliberately left ungrouped: they still arrive as individual PRs,
+# because a major is a migration and reviewing five of them in one diff is how
+# breaking changes get waved through.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Sofia
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      # Matches the commit convention in CONTRIBUTING.md so that `git log
+      # --grep` can separate dependency churn from actual work.
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      npm-minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Electron majors are never a mechanical bump for this app. Each one moves
+      # Chromium and Node together, and DropScribe's whole security posture — a
+      # sandboxed, context-isolated renderer with no node integration, talking to
+      # main over a fixed set of IPC channels — sits exactly on the surface that
+      # Electron majors reshape. That upgrade is a deliberate piece of work with
+      # a manual smoke test on both platforms, not something to merge on a
+      # Monday morning. Minor and patch Electron releases still come through,
+      # which is what actually carries the Chromium security fixes.
+      - dependency-name: electron
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Sofia
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

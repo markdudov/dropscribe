@@ -1,0 +1,207 @@
+# A form, not a markdown template, on purpose.
+#
+# Almost every DropScribe bug report is unactionable for the same reason: the
+# pipeline has four independent places to fail — ffmpeg demuxing the container,
+# the local engine binary, the network call to a cloud provider, the exporter —
+# and a free-text "transcription failed" tells us nothing about which one. The
+# fields below are exactly the facts that pick out one of those four, so the
+# form asks for them up front instead of costing a round-trip each.
+name: Bug report
+description: Something in DropScribe behaves wrong — a failed job, a bad transcript, a broken export.
+title: '[bug] '
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this.
+
+        If you are not sure it is a bug — "how do I get better timings", "which
+        model should I use" — please open a
+        [Discussion](https://github.com/markdudov/dropscribe/discussions)
+        instead. You will get a faster answer there.
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before you file
+      options:
+        - label: >-
+            **This report contains no API key.** Not in the error text, not in a
+            screenshot, not in a pasted `curl`. A key committed to a public issue
+            is public the moment you press submit — GitHub issues are indexed and
+            scraped within minutes — and the only fix is to revoke it at the
+            provider and issue a new one. DropScribe redacts keys from its own
+            error messages, but a screenshot of the Settings pane or a command
+            you ran yourself in a terminal is not redacted by anything.
+          required: true
+        - label: >-
+            I searched [existing issues](https://github.com/markdudov/dropscribe/issues?q=is%3Aissue)
+            and this is not already reported.
+          required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: DropScribe version
+      description: 'Settings → About, or the release you downloaded. If you built from source, the commit SHA.'
+      placeholder: '0.1.0'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Windows 11
+        - Windows 10
+        - Other / built from source elsewhere
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: >-
+        macOS: Apple menu → About This Mac. Windows: Settings → System → About → OS build.
+        The build number matters — Windows codec and DPAPI behaviour differs
+        between builds, and macOS 15 changed how sandboxed helpers see dropped
+        files.
+      placeholder: 'macOS 15.3 (24D60) / Windows 11 23H2 build 22631.4602'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: What was the transcription target?
+      description: >-
+        This is the single most useful field in the form. A local run never
+        touches the network; a cloud run never touches the engine binaries. Which
+        one you picked eliminates half the pipeline immediately.
+      options:
+        - Local — Whisper (whisper.cpp)
+        - Local — Parakeet (parakeet-cli)
+        - Cloud — DeepInfra
+        - Cloud — Deepgram
+        - Cloud — ElevenLabs
+        - Cloud — OpenRouter
+        - Not applicable / it failed before I could choose
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Which model exactly?
+      description: >-
+        For a local run, the model name from the Models pane (e.g. `Whisper
+        large-v3-turbo (quantized)`). For a cloud run, the model id shown in the
+        provider row — not just the provider name. Providers change defaults
+        silently and a bug is often specific to one model.
+      placeholder: 'whisper-large-v3-turbo-q5  /  nova-3  /  scribe_v2'
+    validations:
+      required: true
+
+  - type: input
+    id: container
+    attributes:
+      label: Media container and audio codec
+      description: >-
+        DropScribe hands every file to ffmpeg before anything else sees it, so a
+        container it cannot demux and a codec it cannot decode both surface as
+        the same generic failure. The fastest way to get this is to run ffprobe
+        on the file — the binary ships with the app, or use any copy you have:
+        `ffprobe -hide_banner -i "/path/to/your/file.mkv"` and paste the
+        `Input #0` and `Stream #0:…: Audio:` lines.
+      placeholder: 'mkv container, Audio: opus, 48000 Hz, stereo — or: mp4 / aac / 44100 Hz / mono'
+    validations:
+      required: true
+
+  - type: input
+    id: duration
+    attributes:
+      label: Duration of the file
+      description: >-
+        Length is a first-class variable here, not trivia. Cloud providers have
+        per-request size and duration ceilings, long local runs are where memory
+        and thermal throttling show up, and several past bugs only appeared past
+        the point where the audio was chunked.
+      placeholder: '1 h 47 min  (or: 12 s, if it is a short clip)'
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect instead?
+      description: One or two sentences is fine. Be concrete about which of the two differs from your expectation.
+      placeholder: |
+        The job reached 100% and then flipped to Failed. I expected a transcript
+        in the results pane.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: From a freshly launched app. Say whether you dropped the file, used the Open dialog, or dropped a folder.
+      placeholder: |
+        1. Launch DropScribe.
+        2. Drag `interview.mkv` onto the window.
+        3. Pick Local → Whisper large-v3-turbo.
+        4. Press Transcribe.
+        5. Wait ~40 s.
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-text
+    attributes:
+      label: The full error text, including everything behind the details disclosure
+      description: >-
+        A failed job shows a one-line message and a collapsed **Details**
+        disclosure under it. **Open the disclosure and copy both.** The one-liner
+        is written to be human-readable and is usually the same across a dozen
+        unrelated causes; the detail is the raw thing underneath — the engine's
+        stderr tail, the ffmpeg exit status, or the provider's error body — and
+        that is what actually identifies the bug. A report with only the
+        one-liner almost always needs a second round-trip.
+      render: text
+      placeholder: |
+        Message: Transcription failed.
+        Details:  whisper-cli exited with code 1
+                  whisper_init_from_file_with_params_no_state: failed to load model
+    validations:
+      required: true
+
+  - type: textarea
+    id: narrowing
+    attributes:
+      label: Does it narrow down?
+      description: >-
+        Any of these that you have already tried is worth a line. Each one halves
+        the search space, and you can run them faster than we can ask.
+      value: |
+        - Same file, a different target (local ↔ cloud):
+        - A different file, the same target:
+        - Does it happen every time, or intermittently:
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >-
+        Screenshots, a short screen recording, or the smallest file that still
+        reproduces it. Do not attach media you cannot share publicly — this issue
+        is world-readable. A 10-second clip cut with
+        `ffmpeg -i in.mkv -t 10 -c copy clip.mkv` is usually enough.
+    validations:
+      required: false

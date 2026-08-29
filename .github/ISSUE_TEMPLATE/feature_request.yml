@@ -1,0 +1,101 @@
+# The fields here exist to answer one question before any code is discussed:
+# does this belong in DropScribe at all?
+#
+# DropScribe is a drag-and-drop transcriber. The pressure on a tool like this is
+# always toward becoming an audio editor, a media library and a translation
+# suite, and the way that pressure arrives is one reasonable feature request at a
+# time. So the form asks for the underlying task and for what the requester does
+# today — because a request that is really "I need X" often has an answer that is
+# not a new feature, and the ones that survive that question are the ones worth
+# building.
+name: Feature request
+description: Suggest a capability DropScribe does not have.
+title: '[feature] '
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open-ended "what if DropScribe could…" thinking belongs in
+        [Discussions → Ideas](https://github.com/markdudov/dropscribe/discussions/categories/ideas).
+        Use this form once the idea is concrete enough to describe as a change to
+        the app.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you actually trying to do?
+      description: >-
+        Describe the task, not the feature. "I subtitle a weekly podcast and have
+        to hand-fix speaker labels every time" tells us far more than "add
+        diarization editing", because it leaves room for a better answer than the
+        one you had in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: >-
+        With DropScribe plus something else, with a different tool entirely, or
+        by hand. Where exactly the current flow breaks down is the part we cannot
+        guess.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should DropScribe do instead?
+      description: >-
+        Be specific about where it lives in the app — a new export format, a
+        control in Settings, something on the job row, a new provider. If it is a
+        new provider or a new local model, link its API docs or its weights.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app does this touch?
+      description: A guess is fine. It routes the issue, it does not commit you to anything.
+      options:
+        - Drag-and-drop, the queue, and job handling
+        - Local engines (Whisper / Parakeet) and model management
+        - Cloud providers and API keys
+        - Transcript view and editing
+        - Export formats and subtitle segmentation
+        - Settings, packaging, updates, installers
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else would solve it?
+      description: >-
+        Including "nothing, this is the only way". A request that names a second
+        acceptable answer is much easier to say yes to, because the cheaper of
+        the two can ship first.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: >-
+        DropScribe's whole premise is that you drop a file and get a transcript,
+        with no account, no upload unless you chose a cloud provider, and no
+        project to manage. Features that quietly require an account, a server, or
+        a persistent library are the ones most likely to be declined, so it helps
+        to have thought about it.
+      options:
+        - label: This works with a file the user drops, and needs no DropScribe account or DropScribe-run server.
+          required: false
+        - label: This still works fully offline when the target is a local model.
+          required: false
+        - label: I would be willing to open a pull request for this.
+          required: false

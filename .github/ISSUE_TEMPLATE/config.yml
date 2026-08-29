@@ -1,0 +1,30 @@
+# Blank issues are off deliberately.
+#
+# The two forms next to this file ask for the handful of facts that make a report
+# actionable — target, model, container, duration, the detail disclosure. A blank
+# issue bypasses all of it, and in practice blank issues on a tool like this are
+# either support questions (which belong in Discussions, where they are
+# searchable by the next person with the same question) or reports that need a
+# full round-trip before anyone can start. Sending both to the right place at the
+# moment of filing is worth the small friction of not having an escape hatch.
+blank_issues_enabled: false
+contact_links:
+  - name: Question, or something that is not clearly a bug
+    url: https://github.com/markdudov/dropscribe/discussions/categories/q-a
+    about: >-
+      Setup trouble, "which model should I pick", "why are my timings off",
+      anything where you are not yet sure DropScribe is misbehaving. Answers here
+      stay searchable for the next person.
+
+  - name: Idea, or a feature you have not fully thought through yet
+    url: https://github.com/markdudov/dropscribe/discussions/categories/ideas
+    about: >-
+      Half-formed suggestions and "what if it could…" are genuinely welcome —
+      just not as issues. Open a discussion; if it firms up, file a feature
+      request from it.
+
+  - name: Security vulnerability
+    url: https://github.com/markdudov/dropscribe/security/policy
+    about: >-
+      Do NOT open a public issue for a security problem. Report it privately —
+      SECURITY.md explains how, and what is in scope.
