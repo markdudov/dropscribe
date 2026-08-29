@@ -1,7 +1,5 @@
 # DropScribe
 
-*[Прочети на български → README.bg.md](README.bg.md)*
-
 **Drop an audio or video file on the window and get a transcript back.** A
 desktop app for macOS and Windows that can run entirely on your own machine —
 no account, no subscription, and nothing leaving the computer.
@@ -52,8 +50,9 @@ WAV behaves identically no matter what codec it was recorded with.
   OpenRouter. Each key gets a **Test connection** button, and the per-provider
   model picker appears only after the key validates — a key that fails the test
   is never stored.
-- Export to TXT, Markdown, SRT, WebVTT, JSON and CSV — one job at a time, or
-  the whole queue at once.
+- Export to TXT, Markdown, SRT, WebVTT, JSON and CSV, from the row of the job
+  it belongs to. Exporting opens the containing folder, so you can see where the
+  file went.
 - Subtitles are segmented by the professional rules rather than chopped
   mechanically at sentence boundaries.
 - Automatic language detection; Whisper covers around 99 languages, Parakeet 25
@@ -68,14 +67,14 @@ Download the latest version from
 [Releases](https://github.com/markdudov/dropscribe/releases) — `.dmg` for macOS,
 `.exe` for Windows.
 
-**Version 0.1.0 is not signed.** Code signing for both platforms costs money and
-is still to come; until then the first launch shows a warning:
+**macOS builds are signed with an Apple Developer ID and notarized by Apple**,
+so the dmg opens with a double-click like anything else you install.
 
-- **macOS** — do not open the app by double-clicking. Right-click DropScribe →
-  **Open**, then **Open** again in the dialog. This is needed only the first
-  time; after that it starts normally.
-- **Windows** — SmartScreen shows a blue "Windows protected your PC" screen.
-  **More info → Run anyway**.
+**The Windows installer is not signed.** An Authenticode certificate is a
+separate purchase this project has not made, so SmartScreen shows the blue
+"Windows protected your PC" panel with no publisher name: **More info → Run
+anyway**. Reputation on Windows accrues per binary, so this does not improve as
+the project ages — every release starts from zero until there is a certificate.
 
 If that is not acceptable to you — entirely fair — build from source (below).
 The result is the same app.
@@ -134,9 +133,12 @@ macOS and **Credential Manager** on Windows. They are never written to the logs,
 never end up in the text of an error, and are never shown back to you in the
 interface — after saving you see only the last four characters.
 
-For cloud transcription the file is compressed before upload (16 kHz mono Opus),
-which saves bandwidth and time with no perceptible accuracy cost. If that does
-not suit you, use a local model — then nothing leaves the machine.
+For cloud transcription the file is downmixed to 16 kHz mono and re-encoded
+small before upload, which saves bandwidth and time with no perceptible accuracy
+cost. Which codec depends on what the bundled ffmpeg can actually produce — Opus
+where it is available, otherwise Vorbis, MP3 or AAC — and the bitrate drops
+further when a provider caps the upload size. If that does not suit you, use a
+local model; then nothing leaves the machine.
 
 ## Export
 
