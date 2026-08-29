@@ -1,10 +1,18 @@
 # Renders the Sponsor button at the top of the repository, and the "Sponsor
-# this project" panel in the sidebar.
+# this project" panel in the sidebar. Both need `enable_repository_funding_links`
+# switched on in Settings → General → Features; this file is silently ignored
+# while that is off, which is not something GitHub tells you anywhere.
 #
 # `custom` and not `patreon`/`open_collective`/`ko_fi`: those keys take an
 # account name and build the URL themselves, and neither PayPal.Me nor Revolut
 # has a key of its own. A full URL under `custom` is the supported way to list
 # a platform GitHub has no field for. Up to four are allowed.
+#
+# `paypal.me/…` rather than `www.paypal.com/paypalme/…`, which is what the long
+# form redirects to — verified, same final URL. The sidebar is narrow and prints
+# the URL verbatim, so the long form is displayed truncated to
+# "https://www.paypal.com/paypalm…" and a reader cannot see where it goes. A
+# donation link nobody can read is a donation link nobody clicks.
 custom:
-  - 'https://www.paypal.com/paypalme/markdudov'
+  - 'https://paypal.me/markdudov'
   - 'https://revolut.me/markdudov'
