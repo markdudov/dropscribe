@@ -236,3 +236,24 @@ it makes the button look like it is floating off the surface it belongs to.
 Which edge the popover hangs from follows `.header-controls`: `.popover-anchor`
 in `index.css` pins it to the same side, so it does not open off the left edge of
 the window on Windows, where the controls sit left.
+
+
+## The queue has no bulk actions
+
+`JobList` shows a count and the rows, and nothing else. The two bulk actions it
+used to carry — Clear finished and Export all… — were removed: everything you do
+to a transcript you do to the job it belongs to, from that job's own row, where
+the file name is there to confirm you picked the right one.
+
+Two things are consequently unreferenced by the renderer and are kept
+deliberately rather than by omission:
+
+- `clearFinished` on the store, and its two i18n strings.
+- `exportMany`, all the way down — the store action, the `DropScribeApi` method,
+  the preload forwarder and the `output:exportMany` handler in main.
+
+They are the machinery for batch work, they are tested, and the decision that
+just landed was about the UI rather than the capability. If that decision holds,
+deleting them is a separate, deliberate change — a bridge method with no caller
+is surface a compromised renderer could still reach, and that is the argument for
+removing them, not for leaving them indefinitely.
