@@ -252,7 +252,7 @@ jobs:
           } > release-body.md
           cat release-body.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: engines-${{ inputs.whisper_ref }}
           name: whisper.cpp engines ${{ inputs.whisper_ref }}
