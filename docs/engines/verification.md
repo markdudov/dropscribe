@@ -505,3 +505,119 @@ band the queue maps whisper's 0–100 into.
 The steps are also uneven — 58, 61, 64, 67 — because whisper re-runs a window at a
 higher temperature when the decoder fails a threshold. A UI must therefore never
 infer a rate or an ETA from the delta between two progress events.
+
+## The two ffmpeg builds do not have the same encoders (measured 2026-08-29)
+
+The engines are built to one recipe on both platforms. **ffmpeg is not.** macOS
+gets a build made for a different application; Windows gets a general-purpose
+build from a third party. They agree about containers and about `pcm_s16le`, and
+they disagree about almost every audio *encoder* — which is how bug
+[0002](../bugs/0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md) reached a
+user.
+
+**Ask a build what it has. Never assume.**
+
+```bash
+# every encoder the build carries
+./vendor/bin/darwin-arm64/ffmpeg -hide_banner -encoders
+
+# just the ones this app has ever wanted
+./vendor/bin/darwin-arm64/ffmpeg -hide_banner -encoders \
+  | grep -E ' (libopus|libmp3lame|libvorbis|aac|flac|opus|pcm_s16le) '
+
+# the configure line, which says why
+./vendor/bin/darwin-arm64/ffmpeg -hide_banner -version | sed -n '3p'
+```
+
+`-encoders` lists one row per encoder as `FLAGS name description`, so the leading
+space in those patterns matters: `grep opus` also matches `libopus`, and the two
+are different encoders. Do the same on the Windows binary, which cannot be run on
+a Mac — its configure string is a plain string inside the `.exe` and can be read
+without executing it:
+
+```bash
+strings -a vendor/bin/win32-x64/ffmpeg.exe | grep -m1 -- '--enable-libopus'
+```
+
+What that returns, on the pinned bytes:
+
+| encoder | macOS `n7.1.5` (ours) | Windows (BtbN `20260829`) |
+| --- | --- | --- |
+| `libopus`    | **MISSING** | present |
+| `libmp3lame` | **MISSING** | present |
+| `libvorbis`  | **MISSING** | present |
+| `aac` (native)   | present | present |
+| `flac` (native)  | present | present |
+| `opus` (native)  | present | present |
+| `pcm_s16le`      | present | present |
+| `aac_at` (AudioToolbox) | present | absent — macOS framework |
+
+`pcm_s16le` being on both rows is why `extractWav16k` — and therefore all local
+transcription — never noticed any of this. It is in every ffmpeg ever built.
+
+### The two configure lines, verbatim
+
+**macOS**, `vendor/bin/darwin-arm64/ffmpeg`, from `-version`. Note the `/tmp`
+prefix: this is the author's own build, produced by
+`scripts/build-ffmpeg-macos.sh` in
+[markdudov/silencetrimmer-media-binaries](https://github.com/markdudov/silencetrimmer-media-binaries)
+for **SilenceTrimmer**, a video editor. It has exactly three `--enable-lib*`
+flags — `libx264`, `libx265`, `libzimg` — and all three are video. **No external
+audio codec library is compiled into it.** (`--enable-audiotoolbox` is in there
+and is not one: it exposes macOS's own `aac_at` encoder through a system
+framework, which exists on no other platform and so cannot be what the app asks
+for by name.)
+
+```
+--prefix=/private/tmp/claude-501/-Volumes-Projects-Electron-SilenceTrimmer/b17bdd62-b7d7-4aea-9fa3-09c8604368b4/scratchpad/ff-arm64 --enable-gpl --enable-version3 --enable-static --disable-shared --enable-pthreads --enable-libx264 --enable-libx265 --enable-libzimg --enable-videotoolbox --enable-audiotoolbox --enable-zlib --enable-bzlib --enable-iconv --disable-network --disable-autodetect --disable-doc --disable-ffplay --disable-debug --pkg-config-flags=--static --extra-cflags='-arch arm64 -mmacosx-version-min=11.0 -I/private/tmp/claude-501/-Volumes-Projects-Electron-SilenceTrimmer/b17bdd62-b7d7-4aea-9fa3-09c8604368b4/scratchpad/ffbuild/deps-arm64/include -O3 -fPIC' --extra-ldflags='-arch arm64 -mmacosx-version-min=11.0 -L/private/tmp/claude-501/-Volumes-Projects-Electron-SilenceTrimmer/b17bdd62-b7d7-4aea-9fa3-09c8604368b4/scratchpad/ffbuild/deps-arm64/lib' --extra-libs='-lc++ -liconv'
+```
+
+**Windows**, `vendor/bin/win32-x64/ffmpeg.exe`, read out of the executable. It is
+a BtbN general-purpose GPL build with **51** distinct `--enable-lib*` flags,
+`--enable-libvorbis`, `--enable-libmp3lame` and `--enable-libopus` among them:
+
+```
+--prefix=/ffbuild/prefix --pkg-config-flags=--static --pkg-config=pkg-config --cross-prefix=x86_64-w64-mingw32- --arch=x86_64 --target-os=mingw32 --enable-gpl --enable-version3 --disable-debug --disable-w32threads --enable-pthreads --enable-iconv --enable-zlib --enable-libxml2 --enable-libvmaf --enable-fontconfig --enable-libharfbuzz --enable-libfreetype --enable-libfribidi --enable-vulkan --enable-libshaderc --enable-libvorbis --disable-libxcb --disable-xlib --disable-libpulse --enable-gmp --enable-lzma --enable-liblcevc-dec --enable-opencl --enable-amf --enable-libaom --enable-libaribb24 --enable-avisynth --enable-chromaprint --enable-libdav1d --enable-libdavs2 --enable-libdvdread --enable-libdvdnav --disable-libfdk-aac --enable-ffnvcodec --enable-cuda-llvm --enable-frei0r --enable-libgme --enable-libkvazaar --enable-libaribcaption --enable-libass --enable-libbluray --enable-libjxl --enable-libmp3lame --enable-libopus --enable-libplacebo --enable-librist --enable-libssh --enable-libtheora --enable-libvpx --enable-libwebp --enable-libzmq --enable-lv2 --enable-libvpl --enable-openal --enable-liboapv --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopenmpt --enable-librav1e --enable-librubberband --enable-schannel --enable-sdl2 --enable-libsnappy --enable-libsoxr --enable-libsrt --enable-libsvtav1 --enable-libtwolame --enable-libuavs3d --disable-libdrm --enable-vaapi --enable-libvidstab --enable-libvvenc --disable-whisper --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxvid --enable-libzimg --enable-libzvbi --extra-cflags=-DLIBTWOLAME_STATIC --extra-cxxflags= --extra-libs=-lgomp --extra-ldflags=-pthread --extra-ldexeflags= --cc=x86_64-w64-mingw32-gcc --cxx=x86_64-w64-mingw32-g++ --ar=x86_64-w64-mingw32-gcc-ar --ranlib=x86_64-w64-mingw32-gcc-ranlib --nm=x86_64-w64-mingw32-gcc-nm --extra-version=20260829
+```
+
+### The native `opus` encoder is not a substitute for `libopus`
+
+Both builds list an encoder called `opus`. It is FFmpeg's own implementation, not
+libopus, and it cannot serve this app's upload path. Two gates, in order, both
+measured against `vendor/bin/darwin-arm64/ffmpeg`:
+
+```bash
+ffmpeg -f lavfi -i "sine=duration=1:sample_rate=16000" -ac 1 -ar 16000 \
+  -c:a opus -b:a 12k -f ogg -y out.ogg
+# [opus] The encoder 'opus' is experimental but experimental codecs are not
+#        enabled, add '-strict -2' if you want to use it.
+
+# ... and then, with -strict -2 added:
+# [opus] Specified sample rate 16000 is not supported by the opus encoder
+# [opus] Supported sample rates:
+# [opus]   48000
+```
+
+`libopus` accepts 16 kHz and resamples internally. The native encoder accepts
+48 kHz and nothing else. Dropping `-ar 16000` to satisfy it means uploading three
+times the samples to recognizers that all downsample to 16 kHz on arrival.
+
+### What each encoding costs on the wire
+
+Measured on the 171.2 s speech file from **The bench**, 16 kHz mono, and
+extrapolated to a two-hour film:
+
+| encoding | bytes | effective kbps | 2-hour film |
+| --- | --- | --- | --- |
+| `libopus` 12k, `.ogg` | — (not available on this build) | ~12 | ~10.8 MB |
+| `aac` 32k, `.m4a`     | 710 269 | 33.2 | 28.5 MB |
+| `aac` 24k, `.m4a`     | 533 245 | 24.9 | 21.4 MB |
+| `flac`                | 3 436 590 | 160.6 | 137.8 MB |
+
+Cloud recognizers charge by audio duration, not by bytes, so the only thing size
+buys is the user's upload time — which is the whole reason `UPLOAD_ENCODINGS` in
+`electron/ffmpeg.ts` is a *ranked* table rather than the first encoder that
+works. `flac` is measured here and is deliberately not in that table: it is
+lossless, five times the aac fallback, and every one of these recognizers
+downsamples to 16 kHz mono on arrival, so none of what it preserves survives to
+be decoded.

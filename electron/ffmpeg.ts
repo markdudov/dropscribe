@@ -6,6 +6,11 @@
  * other module talks to media through this one, which is what keeps the
  * "which exact flags did we use?" question answerable.
  *
+ * The squeezing step asks the binary what it can do before it asks it to do
+ * anything — see `UPLOAD_ENCODINGS` — because the vendored macOS and Windows
+ * ffmpeg builds genuinely carry different audio encoders, and a flag list
+ * written from memory is right on one platform and fatal on the other.
+ *
  * Two rules run through the whole file.
  *
  * **Arguments are always an array.** Never a shell string, not once, not for
@@ -504,18 +509,163 @@ export async function extractWav16k(
 
 // ── compressForUpload ───────────────────────────────────────────────────────
 
-/**
- * Whether this ffmpeg build has libopus. `null` until the first attempt.
- *
- * Latched at module scope because it is a property of the *build*, not of the
- * file: once one conversion has proved the encoder missing, paying for a
- * doomed attempt on every later upload would be a wasted process per job.
- */
-let opusAvailable: boolean | null = null;
+/** One way to encode the upload copy: what to ask ffmpeg for, and what comes out. */
+export interface UploadEncoding {
+  /** ffmpeg encoder name, e.g. 'libopus'. */
+  codec: string;
+  /** File extension WITHOUT the dot, e.g. 'ogg', 'm4a', 'mp3'. */
+  extension: string;
+  /** Target bitrate string handed to -b:a, e.g. '12k'. */
+  bitrate: string;
+  /** Extra args this encoder needs, e.g. ['-vbr', 'on'] — may be empty. */
+  extraArgs: readonly string[];
+  /** For the log and for the error message when nothing fits. */
+  label: string;
+}
 
-/** Does this stderr say "no such encoder" rather than "your file is broken"? */
-function looksLikeMissingEncoder(stderr: string): boolean {
-  return /unknown encoder|encoder not found|codec not currently supported|libopus/i.test(stderr);
+/**
+ * Every encoding we would accept for an upload copy, best first.
+ *
+ * Cloud speech APIs charge by audio duration, not by bytes, and every one of
+ * them decodes server-side. It is tempting to conclude from that pair of facts
+ * that file size only costs upload time — the first version of this table said
+ * exactly that, and it was wrong. **OpenRouter rejects anything over 17 MiB
+ * before it makes a network call**, and AAC at the 32 kbps below puts a
+ * two-hour film at 30 MB, measured. So bytes are a correctness concern for at
+ * least one shipped provider, and `fitBitrate` lowers the rate to fit whatever
+ * ceiling the queue passes in. See `maxUploadBytes` in `shared/providers.ts`.
+ *
+ * All four rows sound thin to a human at 16 kHz mono and are comfortably above
+ * what these recognizers need; they downsample to 16 kHz mono anyway.
+ *
+ * Ranked by measurement, on 171.2 s of 16 kHz mono speech extrapolated to a
+ * two-hour film: AAC at 32k is 28.5 MB, AAC at 24k is 21.4 MB, FLAC is 137.8 MB.
+ * Opus at 12k is roughly a third of AAC 32k, which is why it leads — and why
+ * FLAC is absent entirely: a lossless upload costs nearly five times the wait
+ * and buys nothing a recognizer can hear. AAC keeps 32k and not the 21.4 MB
+ * that 24k would give, because the bottom row is the one that runs when nothing
+ * better exists, and the fallback is the wrong place to be shaving quality for
+ * seven megabytes.
+ *
+ * The list ends in `aac` because `aac` is ffmpeg's own native encoder, in every
+ * configuration there is. That last row is what makes this table total in
+ * practice — whatever the vendored build turned out to be, something matches.
+ *
+ * Deliberately NOT here: the native `opus` encoder, the one without the `lib`
+ * prefix. Our macOS build does have it, so it looks like a free extra row, and
+ * it is not: it rejects the input outright with “Specified sample rate 16000 is
+ * not supported by the opus encoder” (measured 2026-08-29), and 16 kHz is the
+ * only sample rate this function ever produces. Adding it back would move the
+ * failure from a cheap probe into the conversion of a three-hour film.
+ */
+export const UPLOAD_ENCODINGS: readonly UploadEncoding[] = [
+  // `-vbr on` is libopus's own default. Stated anyway, so that a later change
+  // to `-b:a` cannot quietly turn this into hard CBR at the same number.
+  { codec: 'libopus', extension: 'ogg', bitrate: '12k', extraArgs: ['-vbr', 'on'], label: 'Opus' },
+  { codec: 'libvorbis', extension: 'ogg', bitrate: '24k', extraArgs: [], label: 'Vorbis' },
+  { codec: 'libmp3lame', extension: 'mp3', bitrate: '32k', extraArgs: [], label: 'MP3' },
+  { codec: 'aac', extension: 'm4a', bitrate: '32k', extraArgs: [], label: 'AAC' },
+];
+
+/**
+ * The muxer name `-f` wants, which is not reliably the extension.
+ *
+ * `.m4a` is the trap: the muxer that writes an audio-only MP4 is called `ipod`,
+ * and `-f m4a` is not a muxer name at all — ffmpeg exits non-zero with “Error
+ * opening output files: Invalid argument”, which reads like a bad path and is
+ * not one. Named explicitly rather than left to ffmpeg's guess-from-the-
+ * filename, so the container stays decided here, next to the table that chose
+ * it, instead of depending on a path string a caller owns.
+ */
+const UPLOAD_MUXERS: Readonly<Record<string, string>> = { ogg: 'ogg', m4a: 'ipod', mp3: 'mp3' };
+
+/**
+ * The audio encoder names in `ffmpeg -encoders` output.
+ *
+ * The listing is a legend, a rule of dashes, then rows — and the legend rows
+ * have the same shape as the real ones, which is the whole reason this is a
+ * parser and not a `split`:
+ *
+ *      A..... = Audio
+ *      ------
+ *      A....D aac                  AAC (Advanced Audio Coding)
+ *      A..X.D opus                 Opus
+ *
+ * Two filters do it. The flag field has to look like an ffmpeg flag field
+ * beginning with `A`, which is what makes a row an *audio* row and what keeps
+ * out the `V`/`S` rows, the `------` rule, and the decoder-only `D.....` rows
+ * of a `-codecs` listing should this ever be pointed at one. The name field has
+ * to look like a name, which is what drops the legend's `=`.
+ *
+ * Neither filter pins the column count, so an ffmpeg that grows a seventh flag
+ * still parses. Anything that cannot be made sense of is skipped rather than
+ * thrown over: a listing we only half understand still answers the one question
+ * we ask of it, and the cost of guessing wrong here is one codec, never the
+ * whole feature.
+ */
+export function parseEncoders(output: string): Set<string> {
+  const names = new Set<string>();
+  for (const rawLine of output.split(/\r?\n/)) {
+    const fields = rawLine.trim().split(/\s+/);
+    const flags = fields[0];
+    const name = fields[1];
+    if (flags === undefined || name === undefined) continue;
+    if (!/^A[.A-Z]+$/.test(flags)) continue;
+    if (!/^[A-Za-z0-9][\w-]*$/.test(name)) continue;
+    names.add(name);
+  }
+  return names;
+}
+
+/**
+ * The best encoding this build can actually produce, or `null` for none.
+ *
+ * The order of `UPLOAD_ENCODINGS` is the entire policy: first match wins, so
+ * there is no score to tune and no way for the ranking to disagree with itself.
+ */
+export function chooseUploadEncoding(available: ReadonlySet<string>): UploadEncoding | null {
+  return UPLOAD_ENCODINGS.find((encoding) => available.has(encoding.codec)) ?? null;
+}
+
+/**
+ * What we assume about a build we could not interrogate.
+ *
+ * `aac` alone, because it is native to every ffmpeg ever configured. An app
+ * that refuses to work because it could not read a capability list is worse
+ * than one that goes ahead with the encoder every build has: the first fails
+ * for certain, the second fails only if the assumption was wrong, and if it is
+ * wrong the conversion says so in ffmpeg's own words a moment later.
+ */
+const ASSUMED_ENCODERS: ReadonlySet<string> = new Set(['aac']);
+
+/**
+ * The encoder set of the ffmpeg we ship, asked once per process.
+ *
+ * Asked, rather than assumed. This function used to be a hard-coded `libopus`
+ * with a `libmp3lame` retry, on the reasoning that the real conversion is a
+ * free probe and a second process on the happy path is not. The vendored macOS
+ * ffmpeg has neither: it is the author's own build for a video editor,
+ * configured `--enable-libx264 --enable-libx265 --enable-libzimg` and nothing
+ * more, so both attempts died on “Encoder not found” and every cloud job failed
+ * instantly. The Windows build (BtbN) does carry libopus, libmp3lame and
+ * libvorbis, so the two platforms genuinely differ and no hard-coded encoder
+ * can be right on both. One extra process per app run buys an answer that is
+ * correct on both today and re-earns Opus by itself on the day the macOS binary
+ * is rebuilt with it.
+ *
+ * The promise is cached, not the resolved Set, so two jobs starting together
+ * share one process instead of racing to spawn two. And no `AbortSignal` is
+ * passed: this is a property of the build, it costs milliseconds, and letting
+ * one user's Cancel land here would cache the aborted answer — `aac` only — for
+ * the rest of the run.
+ */
+let encoderProbe: Promise<ReadonlySet<string>> | null = null;
+
+function availableEncoders(): Promise<ReadonlySet<string>> {
+  encoderProbe ??= runBinary('ffmpeg', ['-hide_banner', '-encoders'])
+    .then((result) => (result.code === 0 ? parseEncoders(result.stdout) : ASSUMED_ENCODERS))
+    .catch(() => ASSUMED_ENCODERS);
+  return encoderProbe;
 }
 
 const COMPRESS_INPUT_ARGS: readonly string[] = [
@@ -526,34 +676,96 @@ const COMPRESS_INPUT_ARGS: readonly string[] = [
 /**
  * A copy small enough to upload over a phone tether.
  *
- * Cloud speech APIs charge by audio duration, not by bytes, and every one of
- * them decodes server-side — so the only thing file size costs is the user's
- * upload time, and that is exactly what dominates the wall clock on a film.
- * 16 kHz mono Opus at 12 kbps is about 1.6 MB for three hours, down from ~3 GB:
- * the upload stops being a stage the user waits through. 12 kbps sounds thin to
- * a human and is comfortably above what these recognizers need — they are all
- * downsampling to 16 kHz mono anyway.
+ * 16 kHz mono at a speech bitrate, in whichever of `UPLOAD_ENCODINGS` this
+ * build supports — about 1.6 MB for three hours as Opus, down from ~3 GB, which
+ * is the difference between an upload the user waits through and one they do
+ * not notice.
  *
- * The MP3 fallback exists for a vendored build without libopus. Detected by
- * *trying*, rather than by parsing `ffmpeg -encoders`, because that would be a
- * whole extra process on the happy path to answer a question the real
- * conversion answers for free. The retry is the detection.
+ * `outBase` is a path WITHOUT an extension, and the written path comes back in
+ * the result. The caller cannot name the file, because the container is not
+ * known until the probe has run, and a `.ogg` holding AAC is a landmine: every
+ * provider we ship sniffs content first, but the one that falls back to the
+ * extension would declare the wrong format and the request would fail somewhere
+ * far away from here.
  *
- * One consequence worth knowing at the call site: on the fallback path the
- * bytes at `outPath` are MP3 even if the caller named the file `.ogg`. Every
- * provider we ship sniffs the content, and a build without libopus is already
- * off the supported path — but a caller that must be certain should keep the
- * name neutral.
+ * The returned `encoding` is also what the caller logs — this module has no
+ * logger of its own, on purpose.
  */
+/**
+ * The lowest bitrate this file is willing to fall to, in kbps.
+ *
+ * AAC-LC on 16 kHz mono speech is still intelligible here; below it the encoder
+ * starts eating consonants, and a transcript is exactly the thing that notices.
+ * If even this does not fit a provider's ceiling the file is simply too long for
+ * that provider, and its own error says so better than a whisper-thin encode
+ * that arrives and transcribes badly.
+ */
+const MIN_UPLOAD_KBPS = 16;
+
+/** Headroom under a byte ceiling, for container overhead and VBR overshoot. */
+const CEILING_HEADROOM = 0.88;
+
+/**
+ * The bitrate to actually use, given the encoder's preference and any ceiling.
+ *
+ * Exported for the tests. `null` for `maxBytes` means "no ceiling" and returns
+ * the encoding's own figure unchanged, which is the common path — only
+ * OpenRouter publishes a hard limit.
+ *
+ * It never raises the bitrate above the encoding's default. A ceiling is a
+ * constraint, not a licence to spend more on a short file.
+ */
+export function fitBitrate(encoding: UploadEncoding, durationMs: number, maxBytes: number | null): string {
+  const preferred = Number.parseInt(encoding.bitrate, 10);
+  if (maxBytes === null || !Number.isFinite(preferred) || durationMs <= 0) return encoding.bitrate;
+  const seconds = durationMs / 1000;
+  const fittedKbps = Math.floor((maxBytes * CEILING_HEADROOM * 8) / seconds / 1000);
+  const chosen = Math.max(MIN_UPLOAD_KBPS, Math.min(preferred, fittedKbps));
+  return `${chosen}k`;
+}
+
 export async function compressForUpload(
   filePath: string,
-  outPath: string,
-  ctx: { signal: AbortSignal; durationMs?: number },
-): Promise<void> {
-  // `ctx.durationMs` is accepted for symmetry with `extractWav16k` and is not
-  // needed here: compression is fast enough that the queue shows a single
-  // "Compressing" stage rather than a bar, so there is no fraction to compute.
-  const base = [
+  outBase: string,
+  ctx: { signal: AbortSignal; durationMs?: number; maxBytes?: number },
+): Promise<{ path: string; encoding: UploadEncoding }> {
+  const encoding = chooseUploadEncoding(await availableEncoders());
+  if (encoding === null) {
+    // Not retryable, and not anything the user did. It means the ffmpeg in
+    // `vendor/bin` was built with no audio encoder at all — not even the native
+    // `aac` every configuration has — which cannot happen to a correctly
+    // packaged app. Say that, instead of inviting a retry that fails the same
+    // way for the same reason every time.
+    const wanted = UPLOAD_ENCODINGS.map((entry) => entry.label).join(', ');
+    throw new Error(
+      `DropScribe cannot prepare “${basename(filePath)}” for upload: its bundled ffmpeg has none of the ` +
+        `audio encoders cloud transcription needs (${wanted}). This copy of DropScribe is packaged ` +
+        `incorrectly, so trying again will not help — reinstall it, or run “npm run binaries:fetch” if you ` +
+        `are running from a checkout. Local transcription is unaffected and still works on this file.`,
+    );
+  }
+
+  const outPath = `${outBase}.${encoding.extension}`;
+  // `?? extension` rather than a non-null assertion: the three containers the
+  // table can name are all in the map, and an extension added later without a
+  // muxer entry should get ffmpeg's own guess instead of a crash here.
+  const format = UPLOAD_MUXERS[encoding.extension] ?? encoding.extension;
+
+  /*
+    The bitrate answers to the provider's ceiling, when it has one.
+
+    The first version of this fix reasoned that file size only costs upload
+    time. That is false for OpenRouter, which rejects anything over 17 MiB
+    before it makes a network call — and AAC at the table's 32 kbps puts a
+    two-hour film at 30 MB, measured. So the ceiling, when the caller passes
+    one, decides the bitrate; without one nothing changes.
+
+    Fitting rather than refusing on purpose: a slightly thinner encode that
+    arrives beats a perfect one the provider will not accept.
+  */
+  const bitrate = fitBitrate(encoding, ctx.durationMs ?? 0, ctx.maxBytes ?? null);
+
+  const args = [
     ...GLOBAL_ARGS,
     ...COMPRESS_INPUT_ARGS,
     '-i', filePath,
@@ -561,31 +773,32 @@ export async function compressForUpload(
     '-map', '0:a:0',
     '-ac', '1',
     '-ar', '16000',
+    '-c:a', encoding.codec,
+    '-b:a', bitrate,
+    ...encoding.extraArgs,
+    // Only the MP4 family has a moov atom, and moving it to the front is what
+    // lets the far end start decoding before the last byte lands — measured on
+    // this output at offset 32 rather than 120669, i.e. past the whole payload.
+    // Conditional on the *container*, not the codec, and conditional at all for
+    // the reader's sake rather than ffmpeg's: a stray `-movflags` on an ogg
+    // output is accepted in silence and exits 0, which is exactly how an
+    // unconditional flag would sit here for years looking like it did something.
+    ...(format === 'ipod' ? ['-movflags', '+faststart'] : []),
+    '-f', format,
+    outPath,
   ];
 
+  let result: RunResult;
   try {
-    if (opusAvailable !== false) {
-      const opus = await runBinary('ffmpeg', [...base, '-c:a', 'libopus', '-b:a', '12k', '-f', 'ogg', outPath], {
-        signal: ctx.signal,
-      });
-      if (opus.code === 0) {
-        opusAvailable = true;
-        return;
-      }
-      // Only latch the *encoder* verdict on an encoder-shaped complaint. A
-      // corrupt input also fails here, and remembering that as "this build has
-      // no Opus" would quietly downgrade every upload for the rest of the run.
-      if (looksLikeMissingEncoder(opus.stderr)) opusAvailable = false;
-    }
-
-    const mp3 = await runBinary('ffmpeg', [...base, '-c:a', 'libmp3lame', '-b:a', '32k', '-f', 'mp3', outPath], {
-      signal: ctx.signal,
-    });
-    if (mp3.code !== 0) {
-      throw toolFailure('DropScribe could not compress', filePath, mp3);
-    }
+    result = await runBinary('ffmpeg', args, { signal: ctx.signal });
   } catch (error) {
     discard(outPath);
     throw error;
   }
+
+  if (result.code !== 0) {
+    discard(outPath);
+    throw toolFailure('DropScribe could not compress', filePath, result);
+  }
+  return { path: outPath, encoding };
 }

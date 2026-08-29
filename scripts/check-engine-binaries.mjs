@@ -270,6 +270,92 @@ for (const name of ['ffmpeg', 'ffprobe']) {
   notes.push(`${name}: ${first}`);
 }
 
+// ── ffmpeg upload encoders ──────────────────────────────────────────────────
+
+/**
+ * The audio encoders `compressForUpload` will consider, best first.
+ *
+ * A hand-kept copy of the `codec` column of `UPLOAD_ENCODINGS`
+ * (`electron/ffmpeg.ts`), in its order, for the same reason `binaries.mjs`
+ * keeps its own `TOOLS` instead of importing `electron/binaries-runtime.ts`:
+ * that module imports `electron`, and this script has to run on a bare
+ * checkout with `node` and nothing compiled. Nothing checks that the two lists
+ * agree, so if you add a codec there, add it here in the same commit —
+ * `test/node/upload-encoder.test.ts` pins the order on the TypeScript side.
+ *
+ * The native `opus` encoder is deliberately NOT on this list, and its presence
+ * in a build is not an answer. It refuses the only sample rate we ever hand it
+ * — "Specified sample rate 16000 is not supported by the opus encoder" — so a
+ * check that accepted it would go green on a build the app still cannot use.
+ */
+const UPLOAD_ENCODERS = ['libopus', 'libvorbis', 'libmp3lame', 'aac'];
+
+/**
+ * The audio encoder names in `ffmpeg -encoders` output.
+ *
+ * Six flag characters, then the name. The first flag is the media type, so the
+ * `V` and `S` rows are skipped by the pattern rather than filtered afterwards,
+ * and requiring the name to be a codec-shaped word is what stops the legend at
+ * the top of the output — ` A..... = Audio` — from being read as an encoder
+ * called `=`.
+ */
+function audioEncoders(text) {
+  const found = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*A[.A-Za-z]+\s+([A-Za-z0-9_]+)(\s|$)/.exec(line);
+    if (match !== null) found.add(match[1]);
+  }
+  return found;
+}
+
+/**
+ * THE ASSERTION THAT WOULD HAVE CAUGHT THE BUG BEFORE A USER DID.
+ *
+ * `compressForUpload` used to ask for `libopus` and fall back to `libmp3lame`.
+ * The vendored macOS ffmpeg is the author's own build, configured
+ * `--enable-libx264 --enable-libx265 --enable-libzimg` and nothing else, so it
+ * has neither — and every cloud job died on arrival with "Encoder not found"
+ * while local transcription, which only ever asks for `pcm_s16le`, kept
+ * working. A hard-coded encoder name is a claim about a binary that nobody was
+ * checking. The app now asks the build what it has; so does this, on whichever
+ * target is being checked, and it prints the winner, because "which encoder
+ * would an upload actually use here?" is worth having in the CI log beside the
+ * build string above — the two platforms genuinely differ.
+ */
+if (runnable(binary('ffmpeg'))) {
+  const file = binary('ffmpeg');
+  // `-hide_banner` for the same reason the app passes it: the configure line
+  // is 40 lines of noise around the one table being read.
+  const result = run(file, ['-hide_banner', '-encoders']);
+
+  if (result.error !== null) {
+    failure(`ffmpeg: could not be run — ${result.error.message}. Path: ${file}`);
+  } else if (result.status !== 0) {
+    failure(`ffmpeg -encoders exited ${String(result.status)}. Path: ${file}`);
+  } else {
+    const available = audioEncoders(result.output);
+    const usable = UPLOAD_ENCODERS.filter((encoder) => available.has(encoder));
+    const chosen = usable[0];
+
+    if (chosen === undefined) {
+      failure(
+        `ffmpeg: has none of ${UPLOAD_ENCODERS.join(', ')}, so every cloud job will fail to compress.\n` +
+          `      This build advertises ${available.size} audio encoder${available.size === 1 ? '' : 's'}, none of them one\n` +
+          `      electron/ffmpeg.ts can upload with. Re-fetch, or rebuild ffmpeg with at least\n` +
+          `      \`--enable-libopus\` — local transcription will keep working either way, which is\n` +
+          `      exactly why this goes unnoticed without this check.\n` +
+          `      Re-measure with \`${file} -hide_banner -encoders\`.`,
+      );
+    } else {
+      const missing = UPLOAD_ENCODERS.filter((encoder) => !available.has(encoder));
+      notes.push(
+        `ffmpeg: uploads would use ${chosen}` +
+          (missing.length > 0 ? ` (this build has no ${missing.join(', ')})` : ' (best available)'),
+      );
+    }
+  }
+}
+
 // ── Verdict ─────────────────────────────────────────────────────────────────
 
 for (const note of notes) process.stdout.write(`  ok  ${note}\n`);

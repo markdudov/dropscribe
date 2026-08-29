@@ -22,7 +22,8 @@
     "postinstall": "node scripts/fetch-binaries.mjs",
     "binaries:fetch": "node scripts/fetch-binaries.mjs",
     "binaries:hashes": "node scripts/fetch-binaries.mjs --write-hashes",
-    "pack": "npm run build && electron-builder --publish never"
+    "pack": "npm run build && electron-builder --publish never",
+    "binaries:check": "node scripts/check-engine-binaries.mjs"
   },
   "keywords": [
     "transcription",

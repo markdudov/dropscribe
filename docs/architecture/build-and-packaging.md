@@ -289,3 +289,64 @@ not because anything is shipped for it. There are no `linux-*` rows in
 `vendor/binaries.json`, so a Linux target would package with no engines by
 exactly the silent path described above. Adding Linux means adding manifest
 entries and someone who actually runs the app there — it is not a `target:` key.
+
+## The two ffmpeg builds are not the same ffmpeg
+
+The section above is about the *engines*, which are built to one recipe on both
+platforms and differ only in how they are delivered. **ffmpeg is not like that,
+and assuming it was cost a shipped bug**
+([../bugs/0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md](../bugs/0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md)).
+
+The two binaries in `vendor/binaries.json` come from unrelated places and were
+configured by different people for different applications:
+
+| | macOS (`darwin-arm64`, `darwin-x64`) | Windows (`win32-x64`) |
+| --- | --- | --- |
+| Origin | [markdudov/silencetrimmer-media-binaries](https://github.com/markdudov/silencetrimmer-media-binaries), built for **SilenceTrimmer**, a video editor | BtbN's general-purpose GPL autobuild |
+| `--enable-lib*` flags | three: `libx264`, `libx265`, `libzimg` | 51, including `libopus`, `libmp3lame`, `libvorbis` |
+| External audio encoders | **none** | all the usual ones |
+
+That was a deliberate choice for good reasons — the manifest's own `$note`
+explains them: a Homebrew or `ffmpeg-static` build with a different codec set does
+not give byte-identical WAV extraction on every machine, and this one links
+against nothing outside `/usr/lib` and `/System`. Those reasons still hold. What
+was never true is that the two builds can do the same things.
+
+**So: anything the app asks ffmpeg to do must either be present in both builds,
+or be chosen at run time from what the binary reports.** There is no third
+option, and "it works on my machine" cannot distinguish between them — the
+developer machine is one of the two platforms and will always be happy with the
+encoder that platform happens to have.
+
+In practice that splits the app's three ffmpeg jobs cleanly:
+
+- **Probing and WAV extraction** are safe to hard-code. `ffprobe`'s demuxers and
+  `pcm_s16le` are in every ffmpeg ever built, which is why `extractWav16k` names
+  its codec outright and why local transcription was never touched by any of
+  this.
+- **Upload compression** is not. `compressForUpload` runs `ffmpeg -encoders`
+  once per process, caches the result, and picks the best entry of a ranked
+  table that the build actually reports — rather than naming `libopus` and
+  hoping. The measured matrix behind that table is in
+  [../engines/verification.md](../engines/verification.md).
+
+A `libraries` array is already recorded per entry in `vendor/binaries.json`, and
+it correctly says `["libx264", "libx265", "libzimg"]` for the macOS ffmpeg. It is
+**documentation for the licence notice, not a run-time capability check** —
+nothing reads it to decide anything, and it describes the pinned bytes rather
+than whatever is on disk. Do not wire it into the encoder decision: the binary
+itself is the only source of truth that cannot drift from the file being run.
+
+### The eventual fix is a rebuild, not more code
+
+The right long-term answer is to **rebuild the macOS binaries in
+`markdudov/silencetrimmer-media-binaries` with `--enable-libopus`** and repin
+`vendor/binaries.json` at the new release. That is one flag on a build script
+that already exists, and it makes every platform take the *first* branch of the
+ranked table — Opus at 12 kbps, roughly a third of the bytes of the aac fallback
+— instead of macOS permanently taking a worse one.
+
+The run-time selection stays either way. It is what makes the rebuild a pure
+improvement with no code change on this side, and it is what keeps the next
+divergence between these two builds from being a bug report instead of a
+slightly larger upload.

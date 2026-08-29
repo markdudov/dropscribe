@@ -35,6 +35,7 @@ import { findProvider } from '../shared/providers';
 import type { Transcript } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
 import { getKey } from '../services/credentials';
+import { log } from '../services/logger';
 import { isInstalled, modelPath } from '../services/model-store';
 import { getSettings } from '../services/settings';
 import { cleanupJobTemp, jobTempDir } from '../services/temp';
@@ -379,9 +380,10 @@ export function createQueue(): JobQueue {
    *
    * `begin` owns the two things that must happen no matter how `runJob` ends:
    * the job reaches a terminal status, and the scratch directory goes away. A
-   * two-hour film's extracted WAV is about 230 MB and its Opus upload is about
-   * 10 MB; leaving either behind on every cancel would quietly cost a heavy user
-   * a gigabyte a week in a folder they will never think to look in.
+   * two-hour film's extracted WAV is about 230 MB, and its compressed upload is
+   * about 10 MB on a build with libopus or about 29 MB on one that falls back to
+   * AAC; leaving either behind on every cancel would quietly cost a heavy user a
+   * gigabyte a week in a folder they will never think to look in.
    */
   async function begin(job: Job): Promise<void> {
     const controller = new AbortController();
@@ -581,14 +583,53 @@ export function createQueue(): JobQueue {
       );
     }
 
-    const uploadPath = path.join(workDir, 'audio.ogg');
+    // A base name with no extension, because the container is not this file's
+    // to choose: `compressForUpload` picks from whatever encoders the vendored
+    // ffmpeg actually has, and that differs between the macOS and Windows
+    // builds we ship. This line used to name `audio.ogg` and was wrong on the
+    // Mac — a build without libopus wrote AAC bytes under an Ogg name, and
+    // Deepgram, which picks its demuxer from the Content-Type we derive from
+    // that name, was handed a lie about its own upload.
+    //
+    // It stays under `workDir` so `cleanupJobTemp` still collects it: cleanup
+    // deletes the directory rather than a path this function predicted, which
+    // is the only reason writing a filename we do not know in advance is safe.
+    const uploadBase = path.join(workDir, 'audio');
     // `compressForUpload` reports no fraction, so this stage is honestly
     // indeterminate rather than the 0–15% the local path shows. A bar frozen at
     // 0 for two minutes on a long film is a worse lie than a spinner: one says
     // "stuck", the other says "working".
     progress(job, null, 'Compressing audio');
-    await compressForUpload(job.filePath, uploadPath, { signal, durationMs });
+    /*
+      The provider's own ceiling, when it publishes one, decides how hard the
+      audio is squeezed. Only OpenRouter does today. Passing it here rather than
+      letting the adapter discover the file is too big is the whole lesson of
+      bug 0002: a size decided in one module and enforced in another is a bug
+      waiting for the first module to change.
+    */
+    const uploadCeiling = findProvider(target.providerId)?.maxUploadBytes;
+
+    const { path: uploadPath, encoding } = await compressForUpload(job.filePath, uploadBase, {
+      signal,
+      durationMs,
+      // Spread rather than assigned: `exactOptionalPropertyTypes` refuses the
+      // property being present and `undefined`, and most providers have no cap.
+      ...(uploadCeiling !== undefined ? { maxBytes: uploadCeiling } : {}),
+    });
     throwIfCancelled(signal);
+
+    // Which encoder the build turned out to have is invisible everywhere else.
+    // It is not in the transcript, not in the job row and not in any error,
+    // because on this path nothing failed — yet it decides both the size of the
+    // upload and how the audio sounds by the time a recognizer hears it, and
+    // those are the two things users write in about. One line here is what
+    // turns "my uploads got bigger after the update" into a question with an
+    // answer, without asking anyone to run ffmpeg themselves.
+    log('info', 'compressed for upload', {
+      encoder: encoding.label,
+      bytes: fileSize(uploadPath),
+      ...(uploadCeiling !== undefined ? { ceilingBytes: uploadCeiling } : {}),
+    });
 
     update(job, {
       status: 'running',

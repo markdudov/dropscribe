@@ -57,6 +57,15 @@ jobs:
       - name: Fetch media binaries for both macOS architectures
         run: node scripts/fetch-binaries.mjs --target darwin-arm64 --target darwin-x64
 
+      # The guard that would have caught bug 0002 before a user did. It runs the
+      # binaries that are about to be packaged and asserts they still speak the
+      # interface the adapters expect — the CLI flags, and at least one audio
+      # encoder that `compressForUpload` can use. CI proper cannot do this: it
+      # installs with `--ignore-scripts` and has no `vendor/bin` at all, so this
+      # is the one machine in the pipeline where the check is meaningful.
+      - name: Check the vendored binaries still speak the expected interface
+        run: npm run binaries:check
+
       - name: Build renderer + main
         run: npm run build
 
@@ -122,6 +131,15 @@ jobs:
       # none of the ways the Mac job can go wrong.
       - name: Fetch media binaries
         run: node scripts/fetch-binaries.mjs --target win32-x64
+
+      # The guard that would have caught bug 0002 before a user did. It runs the
+      # binaries that are about to be packaged and asserts they still speak the
+      # interface the adapters expect — the CLI flags, and at least one audio
+      # encoder that `compressForUpload` can use. CI proper cannot do this: it
+      # installs with `--ignore-scripts` and has no `vendor/bin` at all, so this
+      # is the one machine in the pipeline where the check is meaningful.
+      - name: Check the vendored binaries still speak the expected interface
+        run: npm run binaries:check
 
       - name: Build renderer + main
         run: npm run build

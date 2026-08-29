@@ -37,6 +37,7 @@ import { extname } from 'node:path';
 
 import { formatBytes } from '../shared/models';
 import type { KeyTestResult, ProviderModel } from '../shared/providers';
+import { findProvider } from '../shared/providers';
 import type { Segment, Transcript, Word } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
 import type { CloudContext, CloudRequest, ProviderAdapter } from './types';
@@ -76,12 +77,18 @@ const TRANSCRIBE_TIMEOUT_MS = 15 * 60_000;
  * one published figure whichever side of the encoding OpenRouter measures:
  * 17 MiB of audio becomes ~23.8 MB of base64, under 25 MB by either reckoning.
  *
- * In practice this never bites. The queue hands over 16 kHz mono Opus at about
- * 12 kbps, so 17 MiB is roughly three and a half hours of speech. The cap is
- * here for the case where something upstream hands over an uncompressed WAV,
- * which fills it in about nine minutes.
+ * **This does bite, and the queue now encodes to fit it.** It used to be true
+ * that the queue handed over 16 kHz mono Opus at about 12 kbps, which put 17 MiB
+ * at roughly three and a half hours. Since bug 0002 the encoder is whatever the
+ * vendored ffmpeg turns out to have, and on macOS that is AAC — a two-hour film
+ * at the table's 32 kbps measures 30 MB, well over this line. The number is
+ * therefore declared on the provider descriptor in `shared/providers.ts` and
+ * read by `compressForUpload`, which lowers the bitrate to fit rather than
+ * letting the job die here. This check stays as the backstop for what fitting
+ * cannot save: audio too long for even the minimum bitrate, and anything
+ * upstream that hands over an uncompressed WAV.
  */
-const MAX_AUDIO_BYTES = 17 * 1024 * 1024;
+const MAX_AUDIO_BYTES = findProvider('openrouter')?.maxUploadBytes ?? 17 * 1024 * 1024;
 
 // ── Small narrowing helpers ────────────────────────────────────────────────
 // `any` is banned, and every one of these values crossed a network boundary,
@@ -436,7 +443,12 @@ async function modelDisplayName(modelId: string, signal: AbortSignal): Promise<s
 /**
  * `input_audio.format` is a bare token, not a MIME type, and OpenRouter's
  * documented set is exactly this. Opus is not in it: an Opus stream in an Ogg
- * container — which is what `compressForUpload` writes — is declared as `ogg`.
+ * container is declared as `ogg`.
+ *
+ * Which container arrives is NOT fixed. `compressForUpload` picks its encoder
+ * from what the vendored ffmpeg actually has, so this map has to cover every
+ * one of them — see docs/bugs/0002 for the release where assuming otherwise
+ * broke every cloud job on macOS.
  */
 const EXTENSION_FORMATS: Readonly<Record<string, string>> = {
   '.wav': 'wav',

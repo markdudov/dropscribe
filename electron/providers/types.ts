@@ -29,8 +29,11 @@ export interface CloudRequest {
   modelId: string;
   /**
    * Absolute path to the file to upload. The queue has already compressed the
-   * source to a small Opus file — adapters upload what they are given and never
-   * re-encode, because only the queue knows what the source actually was.
+   * source to something small, but not to a fixed format: the encoder is chosen
+   * from what the vendored ffmpeg was built with, so this is Ogg/Opus on one
+   * build and MP4/AAC on another. Adapters upload what they are given and never
+   * re-encode — only the queue knows what the source actually was — and they
+   * read the container from this path's extension rather than assuming one.
    */
   filePath: string;
   /** From ffprobe. The authority on duration; a provider's own number is a claim. */
@@ -222,7 +225,25 @@ export function readErrorMessage(body: unknown): string | null {
   return null;
 }
 
-/** Extension → MIME. Only what the four provider APIs actually list as accepted. */
+/**
+ * Extension → MIME. Two jobs, and the second one is the load-bearing one.
+ *
+ * Most of this table is about what the user dropped: only what the four
+ * provider APIs actually list as accepted, so nothing here promises a type a
+ * provider would reject.
+ *
+ * The first five rows — ogg, mp3, wav, flac and m4a, with their aliases — are a
+ * different obligation. Those are the containers *we* produce:
+ * `compressForUpload` picks its encoder from whatever the vendored ffmpeg was
+ * built with, and that set is not the same on macOS and Windows, so an upload
+ * can arrive here as any of them and the call site cannot know which in
+ * advance. Every one of them must resolve to a real type, because on all three
+ * upload paths a wrong Content-Type changes how the bytes are read: Deepgram
+ * takes the audio as a raw request body and picks its demuxer from the header,
+ * and ElevenLabs and DeepInfra send multipart, where the part's declared type
+ * travels with the file. Dropping one of these five rows does not degrade a
+ * guess — it hands a provider `application/octet-stream` and buys a 415.
+ */
 const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
   ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg',
   mp3: 'audio/mpeg', mp2: 'audio/mpeg', mpga: 'audio/mpeg',
@@ -246,10 +267,12 @@ const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
  * Yes, this holds the whole file in memory. The alternative — streaming the
  * file into a hand-rolled multipart body — was rejected because `FormData` is
  * the only thing undici's `fetch` will build a correct boundary for, and
- * because of what the queue actually hands us: a 16 kHz mono Opus file at
- * ~12 kbps, which is under 1 MB per ten minutes of audio. A four-hour podcast
- * arrives here as roughly 22 MB. Streaming would buy nothing and cost a
- * multipart implementation nobody wants to debug.
+ * because of what the queue actually hands us: 16 kHz mono speech at 12–32
+ * kbps, depending on which encoder the vendored ffmpeg had. A four-hour podcast
+ * arrives here as roughly 22 MB with libopus and about 60 MB on a build that
+ * fell back to AAC. Sixty megabytes held briefly in a Buffer is not the problem
+ * worth solving; streaming would buy nothing and cost a multipart
+ * implementation nobody wants to debug.
  *
  * The MIME type matters more than it looks: several of these APIs sniff the
  * declared type before they sniff the bytes, and an `application/octet-stream`

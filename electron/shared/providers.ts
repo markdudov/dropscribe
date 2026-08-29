@@ -28,6 +28,21 @@ export interface ProviderDescriptor {
   docsUrl: string;
   /** Billing unit, shown next to a model's price. */
   priceUnit: 'per-minute' | 'per-hour';
+  /**
+   * A hard ceiling on the compressed upload, in bytes, where the provider
+   * publishes one.
+   *
+   * It lives here rather than inside the adapter because the QUEUE has to know
+   * it before the adapter is ever called: the upload is encoded once, by
+   * `compressForUpload`, and the bitrate it picks has to fit. Bug 0002 is
+   * exactly what happens when a number like this is known in one module and
+   * assumed in another — the encoder changed, the cap did not move, and jobs
+   * started failing before they reached the network.
+   *
+   * Absent means the provider publishes no figure. It does not mean unlimited;
+   * it means we have nothing to fit to and will send what we would have sent.
+   */
+  maxUploadBytes?: number;
 }
 
 export const PROVIDERS: readonly ProviderDescriptor[] = [
@@ -66,6 +81,11 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [
     keyUrl: 'https://openrouter.ai/keys',
     docsUrl: 'https://openrouter.ai/docs',
     priceUnit: 'per-minute',
+    // 17 MiB. OpenRouter documents a 25 MB request limit and the audio travels
+    // base64-encoded, which inflates by 4/3 — 17 MiB of audio becomes ~23.8 MB
+    // of body, under the published figure whichever side of the encoding they
+    // measure. The adapter enforces it; the queue encodes to fit it.
+    maxUploadBytes: 17 * 1024 * 1024,
   },
 ];
 

@@ -6,9 +6,9 @@
    "size": 4722
   },
   "docs/architecture/build-and-packaging.md": {
-   "mtime_ns": 1788013949247617061,
-   "sha1": "9af48c41f6fdc9da7710ce9d795e7fb1f7b2640c",
-   "size": 16478
+   "mtime_ns": 1788016887779645018,
+   "sha1": "ffd883e33b51612e44b088a4c69cb95d3e0f0438",
+   "size": 20069
   },
   "docs/architecture/ipc-and-security.md": {
    "mtime_ns": 1788013087194510158,
@@ -21,19 +21,24 @@
    "size": 22854
   },
   "docs/architecture/state-and-store.md": {
-   "mtime_ns": 1788015276985765852,
-   "sha1": "eca8bb71d8ab48d1235acd3d7804d51216d5c25f",
-   "size": 11059
+   "mtime_ns": 1788016365443928970,
+   "sha1": "658b113521089db325f30d5f2e4b905ffc67263b",
+   "size": 12195
   },
   "docs/bugs/0001-cue-ran-past-the-end-of-the-media.md": {
    "mtime_ns": 1788012644682689439,
    "sha1": "f42479d363f4f0ccab556b609495616f131c3b78",
    "size": 3915
   },
+  "docs/bugs/0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md": {
+   "mtime_ns": 1788016993452766853,
+   "sha1": "862c8ed4126deb756c29ee94946b6f83c7cb2a78",
+   "size": 9416
+  },
   "docs/bugs/README.md": {
-   "mtime_ns": 1788012767060464888,
-   "sha1": "2548072aef6c0e2d47fbdeb1d52cb9b87e65ea84",
-   "size": 6046
+   "mtime_ns": 1788016797457607799,
+   "sha1": "dae30f523d5e7e9685592997797666e3f9f34dc6",
+   "size": 6309
   },
   "docs/bugs/TEMPLATE.md": {
    "mtime_ns": 1788012732136446791,
@@ -46,9 +51,9 @@
    "size": 24543
   },
   "docs/engines/verification.md": {
-   "mtime_ns": 1788014103524311044,
-   "sha1": "b63bee2c0e1341744b1863a5439586dde8419299",
-   "size": 23686
+   "mtime_ns": 1788016932334087431,
+   "sha1": "1c14357850f7ab97ca4f522cce05d8617cb8ba74",
+   "size": 31337
   },
   "docs/providers/cloud-providers.md": {
    "mtime_ns": 1788015276985426894,
@@ -111,9 +116,9 @@
    "size": 7841
   },
   "electron/ffmpeg.ts": {
-   "mtime_ns": 1788010198517360421,
-   "sha1": "7d635cf33ce8001892a2e5ab9f63fe8f7851fec9",
-   "size": 22875
+   "mtime_ns": 1788016952506706744,
+   "sha1": "858da500c9d9fed642acec6491a888bb90abaa89",
+   "size": 31389
   },
   "electron/main.ts": {
    "mtime_ns": 1788013901926130972,
@@ -156,9 +161,9 @@
    "size": 37853
   },
   "electron/providers/types.ts": {
-   "mtime_ns": 1788010254597522318,
-   "sha1": "1ba17019261b41400aa3d520f9b4d5e0be9a663a",
-   "size": 14498
+   "mtime_ns": 1788016792457134987,
+   "sha1": "c4355ebe24e647b853b3e55cda82c369a7a01ccc",
+   "size": 15918
   },
   "electron/services/credentials.ts": {
    "mtime_ns": 1788009948770969007,
@@ -226,9 +231,9 @@
    "size": 5428
   },
   "electron/transcribe/queue.ts": {
-   "mtime_ns": 1788010342871737196,
-   "sha1": "516ed1f802b19915ae98421b5755cd9eeeb47d13",
-   "size": 29710
+   "mtime_ns": 1788016750978643735,
+   "sha1": "2a202309a69c00ab92ac542ad2f82f980b906fea",
+   "size": 31253
   },
   "scripts/binaries.mjs": {
    "mtime_ns": 1788013337850176475,
@@ -236,9 +241,9 @@
    "size": 23143
   },
   "scripts/check-engine-binaries.mjs": {
-   "mtime_ns": 1788013129513652518,
-   "sha1": "7f1a75d78c7e6fb0e668ec338c0e33abf77a5d6a",
-   "size": 12117
+   "mtime_ns": 1788016998393551757,
+   "sha1": "1c678a024c67d40cc44d3b045aa1f8f967e4b5b0",
+   "size": 16381
   },
   "scripts/dev.mjs": {
    "mtime_ns": 1788013166011254419,
@@ -261,9 +266,9 @@
    "size": 7283
   },
   "src/index.css": {
-   "mtime_ns": 1788015901537995463,
-   "sha1": "fad3614d7df82ba40e3e2aa6d142b0686aa261e7",
-   "size": 9926
+   "mtime_ns": 1788016148038498916,
+   "sha1": "2e36b73a4d456661824971d028b56a3f264dac16",
+   "size": 10401
   },
   "src/index.html": {
    "mtime_ns": 1788012571815599634,
@@ -306,9 +311,9 @@
    "size": 9055
   },
   "src/ui/TargetPicker.tsx": {
-   "mtime_ns": 1788014801585415310,
-   "sha1": "523bf153381d83b3f87f6c304edd92641c4920a7",
-   "size": 12203
+   "mtime_ns": 1788016277580171311,
+   "sha1": "d552225315c882a834b743a62dfebf95f4b3b2ae",
+   "size": 13959
   },
   "src/ui/TranscriptView.tsx": {
    "mtime_ns": 1788014764722242536,
@@ -375,6 +380,11 @@
    "sha1": "2c93243a36f33d92803f80175fa43040680c4560",
    "size": 4474
   },
+  "test/node/upload-encoder.test.ts": {
+   "mtime_ns": 1788016967954934600,
+   "sha1": "a880af550414e6293fc77d42c2cb9bc642c7da45",
+   "size": 10370
+  },
   "test/parakeet-parse.test.ts": {
    "mtime_ns": 1788013596795498683,
    "sha1": "b4170fc9fe1290e69b5caf7d4ca57bd7553c31a4",
@@ -402,6 +412,6 @@
   }
  },
  "last_blocked": null,
- "taken_at": 1788016093.780442,
+ "taken_at": 1788017804.1096268,
  "version": 1
 }

@@ -307,9 +307,11 @@ async function transcribe(request: CloudRequest, ctx: CloudContext): Promise<Tra
   ctx.onProgress(null, 'Uploading audio');
 
   const form = new FormData();
-  // The queue has already turned whatever was dropped into a small Opus file;
-  // the real basename goes along so DeepInfra sees a `.ogg` extension matching
-  // the blob's MIME type. Several of these APIs sniff the name before the bytes.
+  // The queue has already turned whatever was dropped into a small compressed
+  // file — Opus, Vorbis, MP3 or AAC, whichever the vendored ffmpeg turned out to
+  // have (see docs/bugs/0002). The real basename goes along so DeepInfra sees an
+  // extension matching the blob's MIME type, whatever that container is. Several
+  // of these APIs sniff the name before the bytes.
   form.append('file', await fileToBlob(request.filePath), basename(request.filePath));
   form.append('model', request.modelId);
   // Without this the response is `{ "text": "..." }` and nothing else — no
