@@ -1,0 +1,24 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "include": [
+    "electron/**/*",
+    "scripts/**/*",
+    "electron.vite.config.ts",
+    "vite.config.ts",
+    "eslint.config.js",
+    "test/node/**/*"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    // Without this, tsc writes compiled electron/*.js next to the sources and
+    // Vite resolves .js before .ts — every main-process edit then silently does
+    // nothing while the stale file loads instead.
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": { "@shared/*": ["electron/shared/*"] }
+  }
+}

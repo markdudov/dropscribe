@@ -1,0 +1,11 @@
+node_modules/
+out/
+release/
+dist/
+.dev/
+vendor/bin/
+*.log
+.DS_Store
+._*
+.vite/
+coverage/

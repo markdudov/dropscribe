@@ -1,0 +1,25 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    // Files under electron/ that are deliberately free of node/electron
+    // imports, so the renderer and the jsdom test suite can use them directly.
+    // THIS LIST IS THE AUTHORITY on which those are.
+    "electron/api-types.ts",
+    "electron/media-extensions.ts",
+    "electron/shared/**/*"
+  ],
+  "exclude": ["test/node/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"], "@shared/*": ["electron/shared/*"] }
+  }
+}
