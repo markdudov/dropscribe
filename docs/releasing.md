@@ -141,23 +141,73 @@ makes a release reproducible from a tag.
 
 ## The unsigned build
 
-There is no Apple Developer ID and no Windows code-signing certificate behind
-these builds. That is a deliberate, currently-unfunded position, and it has
-concrete consequences that must be described honestly in every release.
+No certificate is wired into CI, so releases are **ad-hoc signed**: the bundle
+seals and verifies, but it is attributable to nobody. That has concrete
+consequences which must be described honestly in every release.
 
 ### On macOS
 
 The dmg is downloaded by a browser, so it arrives carrying
-`com.apple.quarantine`. Because the app is neither signed with a Developer ID nor
-notarized, Gatekeeper refuses to open it on a double-click, with a dialog saying
-the developer cannot be verified. The user's way through is right-click → **Open**
-→ confirm, once; on recent macOS versions even that is refused and the user has to
-go to **System Settings → Privacy & Security**, find the message about DropScribe
-being blocked, and choose **Open Anyway**.
+`com.apple.quarantine`. Because the app is not notarized, Gatekeeper refuses the
+first double-click with a dialog saying Apple cannot verify it. The way through
+is **System Settings → Privacy & Security → Open Anyway**, once. On macOS 14 and
+earlier, right-click → **Open** also works; macOS 15 removed that shortcut, which
+is why it is no longer the first instruction in the release notes.
 
-There is no trick that removes this. `xattr -d com.apple.quarantine` works but
-telling users to paste `xattr` commands from the internet is teaching them the
-exact habit that gets people compromised, and we are not going to do it.
+Ad-hoc is the floor, not the natural state of an unsigned app. Leave
+`mac.identity` out of `electron-builder.yml` entirely and the build is worse than
+this — see *Signing: ad-hoc is not decoration* in
+[architecture/build-and-packaging.md](architecture/build-and-packaging.md).
+
+There is no trick that removes the dialog. `xattr -d com.apple.quarantine`
+works, but telling users to paste `xattr` commands from the internet is teaching
+them the exact habit that gets people compromised, and we are not going to do
+it. The only thing that removes it is notarization.
+
+### Turning on signing and notarization
+
+The workflow is already written for it. It branches on what secrets exist and
+needs no edit — add the secrets and the next tag comes out notarized.
+
+**Signing only is not worth doing.** A Developer ID without a notarization
+ticket buys attribution and nothing else: macOS 15 shows a user the identical
+dialog it shows for ad-hoc. Do both or neither. The workflow says so with a loud
+`::warning::` if it finds a certificate and no notarization credentials, and
+still produces the release rather than blocking it.
+
+**The certificate**, two secrets:
+
+```bash
+# Exports the private key — macOS will ask for the login password, and it must
+# be a real interactive terminal for that prompt to appear.
+security export -k login.keychain-db -t identities -f pkcs12 -o ~/dropscribe.p12
+base64 -i ~/dropscribe.p12 | pbcopy   # → paste as the CSC_LINK secret
+```
+
+`CSC_KEY_PASSWORD` is the password chosen at the `security export` prompt.
+Delete `~/dropscribe.p12` afterwards; the secret is the only copy that needs to
+exist.
+
+**The notarization credentials**, three secrets, in whichever of the two shapes
+is less trouble:
+
+| Shape | Secrets | Where it comes from |
+| --- | --- | --- |
+| App-specific password | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | appleid.apple.com → Sign-In and Security → App-Specific Passwords. The team ID is the code in brackets in the certificate name. |
+| App Store Connect key | `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | appstoreconnect.apple.com → Users and Access → Integrations. The `.p8` downloads **once**; `APPLE_API_KEY` is its contents, and the workflow writes it to `RUNNER_TEMP` rather than the workspace. |
+
+The API key wins if both are present. It is the better one for a shared
+repository — it is scoped and revocable on its own, where an app-specific
+password is attached to the whole Apple ID.
+
+Notarization adds a few minutes to the macOS job: the app is uploaded to Apple,
+waits for a verdict, and the ticket is stapled into the bundle before the dmg is
+built around it. When it works, the first-launch dialog is simply gone.
+
+After the first notarized release, update `RELEASE_NOTES.md`: the section about
+the missing signature stops being true for macOS, and the publish job's check
+(which refuses notes that have lost the warning) will need its macOS phrases
+adjusted along with it.
 
 ### On Windows
 
