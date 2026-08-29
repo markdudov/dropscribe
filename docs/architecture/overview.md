@@ -278,3 +278,31 @@ the contract:
 The list of *files* under `src/` is deliberately not reproduced here — it moves,
 and a stale table is worse than no table. `tsconfig.web.json` and the store's own
 documentation are the authorities.
+
+
+## The header carries two controls and no title
+
+There is no app name in the header. The window is the only window, its content
+says what it is, macOS carries the name in the Dock and the menu bar, and Windows
+carries it in the native title bar above the row. A word that is never the answer
+to a question the user is asking was simply the widest thing on the strip.
+
+Where the two controls sit is a platform question, not a taste one: **they go
+opposite the operating system's own window buttons.** macOS draws its traffic
+lights top-left, so the target picker and the gear go right; Windows and Linux
+draw minimise/maximise/close top-right, so they go left. Reaching for the same
+corner as the OS is how a settings gear ends up a few pixels from a close button.
+
+Both rules live in `src/index.css` — `.titlebar-inset` and `.header-controls` —
+keyed off a `data-platform` attribute that `src/main.tsx` sets from
+`navigator.platform` before React's first frame. Reading it from `getAppInfo()`
+instead would leave the layout wrong for the length of an IPC round trip, which
+is visible as a jump on every launch. It is CSS rather than a branch in
+`App.tsx` because a component that re-orders its own children by platform is one
+every future edit has to remember to keep symmetrical, and because
+`margin-inline` does the right thing under a right-to-left locale.
+
+Windows keeps its native frame today (only macOS gets `titleBarStyle:
+'hiddenInset'`, see `createWindow` in `electron/main.ts`), so its buttons are in
+a bar above this row rather than over it. The layout is the one that stays
+correct if that ever changes.

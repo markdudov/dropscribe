@@ -167,6 +167,34 @@
   }
 
   /*
+    The header controls sit opposite the operating system's own window buttons.
+
+    macOS draws its traffic lights top-left, so the picker and the gear go right.
+    Windows and Linux draw minimise/maximise/close top-right, so they go left.
+    Reaching for the same corner as the OS is how you end up with a settings gear
+    a few pixels from a close button — a misclick that quits the app.
+
+    This lives in CSS rather than as a branch in `App.tsx` because the platform
+    is already on the root element for `titlebar-inset`, and a component that
+    re-orders its own children by platform is a component every future edit has
+    to remember to keep symmetrical. `margin-inline` also does the right thing
+    under a right-to-left locale, which a hard-coded `ml-auto` would not.
+
+    Windows currently keeps its native frame, so its buttons are in a title bar
+    above this row rather than over it — this is the layout that stays correct if
+    that ever changes, not a workaround for something broken today.
+  */
+  .header-controls {
+    margin-inline-start: auto;
+  }
+
+  [data-platform='win32'] .header-controls,
+  [data-platform='linux'] .header-controls {
+    margin-inline-start: 0;
+    margin-inline-end: auto;
+  }
+
+  /*
     The three surfaces every panel in the app is built from, so a card in the
     settings modal and a job row in the list cannot drift apart.
 

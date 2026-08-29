@@ -19,7 +19,7 @@
 
 import { useEffect } from 'react';
 import type { ReactElement } from 'react';
-import { AlertTriangle, FileAudio, Settings as SettingsIcon, X } from 'lucide-react';
+import { AlertTriangle, Settings as SettingsIcon, X } from 'lucide-react';
 
 import { DropZone } from './DropZone';
 import { JobList } from './JobList';
@@ -89,15 +89,27 @@ export function App(): ReactElement {
         material reads as one surface with a lit top edge instead of two stacked
         rectangles.
       */}
-      <header className="drag-region titlebar-inset relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-xl dark:border-white/[0.06] dark:bg-ink-950/70">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-sheen shadow-glow">
-            <FileAudio className="h-4 w-4 text-white" aria-hidden="true" />
-          </span>
-          <h1 className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em]">DropScribe</h1>
-        </div>
+      {/*
+        No app name in the header, deliberately.
 
-        <div className="no-drag ml-auto flex items-center gap-2">
+        The window is the only window, its content says what it is, and macOS
+        already carries the name in the Dock and the menu bar while Windows
+        carries it in the native title bar above this row. A word that is never
+        the answer to a question the user is asking is just the widest thing on
+        the strip.
+
+        What is left is the header's real job: the two controls, and enough empty
+        space to drag the window by.
+      */}
+      <header className="drag-region titlebar-inset relative z-20 flex h-14 shrink-0 items-center border-b border-slate-200 bg-white/80 px-4 backdrop-blur-xl dark:border-white/[0.06] dark:bg-ink-950/70">
+        {/*
+          Which end the controls sit at is a platform question, not a taste one:
+          they go opposite the OS's own window buttons. macOS puts its traffic
+          lights top-left, so ours go right; Windows puts minimise/maximise/close
+          top-right, so ours go left. `header-controls` in index.css owns that
+          switch — see the note there for why it is CSS and not a branch here.
+        */}
+        <div className="header-controls no-drag flex items-center gap-2">
           <TargetPicker />
           <button
             type="button"

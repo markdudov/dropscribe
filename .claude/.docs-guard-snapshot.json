@@ -21,9 +21,9 @@
    "size": 21231
   },
   "docs/architecture/state-and-store.md": {
-   "mtime_ns": 1788013064501003322,
-   "sha1": "583a1f3df2f1cbc05e9475482d0d3dc751e76481",
-   "size": 10474
+   "mtime_ns": 1788015276985765852,
+   "sha1": "eca8bb71d8ab48d1235acd3d7804d51216d5c25f",
+   "size": 11059
   },
   "docs/bugs/0001-cue-ran-past-the-end-of-the-media.md": {
    "mtime_ns": 1788012644682689439,
@@ -51,9 +51,9 @@
    "size": 23686
   },
   "docs/providers/cloud-providers.md": {
-   "mtime_ns": 1788012671437880302,
-   "sha1": "75d888a258779f8c34c4e6e92bd87f2eea0d0c2c",
-   "size": 32125
+   "mtime_ns": 1788015276985426894,
+   "sha1": "ecaee43261538430d651c17824af96589082ef0c",
+   "size": 33598
   },
   "docs/releasing.md": {
    "mtime_ns": 1788013940720926791,
@@ -261,9 +261,9 @@
    "size": 7283
   },
   "src/index.css": {
-   "mtime_ns": 1788012595712629116,
-   "sha1": "2ced0389566b4266b31ca702581bfcc95d677281",
-   "size": 3860
+   "mtime_ns": 1788015205051707159,
+   "sha1": "8323fc6485485ee3c0cb4eb1e22e1b523b72a17a",
+   "size": 8687
   },
   "src/index.html": {
    "mtime_ns": 1788012571815599634,
@@ -271,9 +271,9 @@
    "size": 2278
   },
   "src/main.tsx": {
-   "mtime_ns": 1788013176843029437,
-   "sha1": "dcf38ac9ddac6bdada070619c00c23db61eb2191",
-   "size": 2382
+   "mtime_ns": 1788014506820910387,
+   "sha1": "f838441da833d77d62f9f8265233d90a062a8685",
+   "size": 3128
   },
   "src/types/preload.d.ts": {
    "mtime_ns": 1788012785793682748,
@@ -281,39 +281,39 @@
    "size": 1142
   },
   "src/ui/App.tsx": {
-   "mtime_ns": 1788013039494576869,
-   "sha1": "607e31012bbb80673a5a3eb2556cde0791faeede",
-   "size": 7962
+   "mtime_ns": 1788014525339670599,
+   "sha1": "1d833db815d6d6799796e935bf332dbaf23289a2",
+   "size": 8363
   },
   "src/ui/DropZone.tsx": {
-   "mtime_ns": 1788013161114484105,
-   "sha1": "c14199a899d6c70969e71ef36a988bd3b31eb106",
-   "size": 12439
+   "mtime_ns": 1788014581078312112,
+   "sha1": "75101f4ecf0b4b8726663e2364102fe5044620a7",
+   "size": 14040
   },
   "src/ui/JobList.tsx": {
-   "mtime_ns": 1788013061848414057,
-   "sha1": "8fa35b55fe45605cf4f52c1f62bfb2d9e7192a56",
-   "size": 5339
+   "mtime_ns": 1788014823961523329,
+   "sha1": "216d693723d6c565c67f6bb23ef59de648d5ee51",
+   "size": 5260
   },
   "src/ui/JobRow.tsx": {
-   "mtime_ns": 1788013112093038107,
-   "sha1": "d207c9c619c96dce69a93cda03d2b38874f6978c",
-   "size": 14277
+   "mtime_ns": 1788014886406215136,
+   "sha1": "0ab81d59cc6a915887c560506841bcdd18800582",
+   "size": 17192
   },
   "src/ui/SettingsModal.tsx": {
-   "mtime_ns": 1788012875388844050,
-   "sha1": "4f0dcc2ea6baa7a67fc970fe1e6b59bf40653d97",
-   "size": 7714
+   "mtime_ns": 1788014728775084644,
+   "sha1": "1ba1504fd6b83665d21f80079585ac7827458392",
+   "size": 9055
   },
   "src/ui/TargetPicker.tsx": {
-   "mtime_ns": 1788013161144399113,
-   "sha1": "c1bfb407f4c72fcbf33c51b5ff7a7f9d7f681f54",
-   "size": 11100
+   "mtime_ns": 1788014801585415310,
+   "sha1": "523bf153381d83b3f87f6c304edd92641c4920a7",
+   "size": 12203
   },
   "src/ui/TranscriptView.tsx": {
-   "mtime_ns": 1788012910162926647,
-   "sha1": "23819f348a6330de0d54f50acd65868d0eed5495",
-   "size": 9029
+   "mtime_ns": 1788014764722242536,
+   "sha1": "82a070a92873c4ce4e5df2eb24e8be387b8aa1a6",
+   "size": 9894
   },
   "src/ui/i18n/bg.ts": {
    "mtime_ns": 1788012684178131495,
@@ -331,24 +331,24 @@
    "size": 5498
   },
   "src/ui/settings/AboutTab.tsx": {
-   "mtime_ns": 1788012821924788428,
-   "sha1": "7dde900b34efa393cb46bdc68206b021bf8f7ee1",
-   "size": 7437
+   "mtime_ns": 1788014967680784359,
+   "sha1": "160c7995baf0553dd150ccb1d64d18bc30e4c342",
+   "size": 8109
   },
   "src/ui/settings/ModelsTab.tsx": {
-   "mtime_ns": 1788012715654216854,
-   "sha1": "52dfd7cff5a7281024f0682556b5abc91e76420d",
-   "size": 9126
+   "mtime_ns": 1788015133072237358,
+   "sha1": "425e16e041391352aec8a85932c6fd75a9c793d2",
+   "size": 11661
   },
   "src/ui/settings/OutputTab.tsx": {
-   "mtime_ns": 1788012785011349726,
-   "sha1": "dfdcd8cce4b7a3b1dc3df56487dc71bea0df714b",
-   "size": 17646
+   "mtime_ns": 1788014929653306148,
+   "sha1": "3a6ed37c89395e2305536639f081636841998d5f",
+   "size": 19234
   },
   "src/ui/settings/ProvidersTab.tsx": {
-   "mtime_ns": 1788012958108125867,
-   "sha1": "dbfb60e87241173a11e779afd4700219ffde13b2",
-   "size": 18846
+   "mtime_ns": 1788015220521314637,
+   "sha1": "ef2014627677c05304362a7ea90241979e973ea9",
+   "size": 26549
   },
   "src/ui/store/index.ts": {
    "mtime_ns": 1788013005950718239,
@@ -402,6 +402,6 @@
   }
  },
  "last_blocked": null,
- "taken_at": 1788014375.2587268,
+ "taken_at": 1788015845.0246139,
  "version": 1
 }
