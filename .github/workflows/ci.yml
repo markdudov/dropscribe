@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # The major CONTRIBUTING.md tells contributors to develop against
           # (`nvm use 22`). Left as a bare major so patch releases arrive
