@@ -257,3 +257,44 @@ just landed was about the UI rather than the capability. If that decision holds,
 deleting them is a separate, deliberate change — a bridge method with no caller
 is surface a compromised renderer could still reach, and that is the argument for
 removing them, not for leaving them indefinitely.
+
+
+## State that follows a prop is adjusted during render
+
+`react-hooks/set-state-in-effect`, which arrives with the plugin's v7, rejects a
+`setState` called synchronously in an effect body. Two components were doing it,
+and in both the effect was the wrong tool rather than a rule technicality: an
+effect runs *after* the browser has been given a frame, so the render in between
+paints state the component already knows is stale.
+
+**`OutputTab`'s `NumberField`** keeps a text draft so that a half-typed number is
+not clamped under the cursor. Typing `42` into a field with a minimum of 10
+passes through `4`, and a clamp on every keystroke would snap that to `10` and
+leave the `2` landing in a field that changed underneath. The draft is local and
+the clamp happens on blur, but when the clamped value comes back from main the
+field has to follow it. That sync is now the previous-value comparison React
+documents for exactly this case:
+
+```ts
+const [lastValue, setLastValue] = useState(value);
+if (value !== lastValue) { setLastValue(value); setDraft(String(value)); }
+```
+
+A `setState` during render is not the hazard it looks like: React discards the
+in-progress render and re-runs the component before touching the DOM, so nothing
+is painted twice, and `value` is a number compared with `!==`, so it cannot loop.
+
+**`TranscriptView`** used to hold `text` and `error` as two pieces of state and
+blank them at the top of the effect that fetched the next format. That gave one
+painted frame where the SRT tab was selected and the plain-text body was still on
+screen. The state is now a single object stamped with the request it answers:
+
+```ts
+const requestKey = jobId == null ? null : `${jobId}\u0000${format}`;
+const current = rendered !== null && rendered.key === requestKey ? rendered : null;
+```
+
+Switching format changes the key, so the previous answer stops being current in
+the *same* render that asks for the new one. The `cancelled` flag in the effect
+stays, because it stops a late reply from being written at all, but staleness is
+now structural rather than something a cleanup has to remember to prevent.

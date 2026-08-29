@@ -96,7 +96,7 @@ async function invokeUserFacing<T>(channel: string, ...args: unknown[]): Promise
     const result: unknown = await ipcRenderer.invoke(channel, ...args);
     return result as T;
   } catch (error) {
-    throw new Error(userFacingMessage(error));
+    throw new Error(userFacingMessage(error), { cause: error });
   }
 }
 

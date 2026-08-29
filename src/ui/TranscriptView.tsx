@@ -46,8 +46,19 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
   const job = jobId === null ? undefined : jobs.find((entry) => entry.id === jobId);
 
   const [format, setFormat] = useState<ExportFormat>('txt');
-  const [text, setText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  /*
+   * One piece of state, stamped with the request it answers, rather than a
+   * `text`/`error` pair that an effect blanks on the way in. Switching format
+   * makes the stamp stop matching, so the previous answer stops being current
+   * in the same render that asks for the new one — no intermediate render
+   * where the old text is still on screen under the new tab.
+   */
+  const [rendered, setRendered] = useState<{ key: string; text: string | null; error: string | null } | null>(null);
+  const requestKey = jobId === null || jobId === undefined ? null : `${jobId}\u0000${format}`;
+  const current = rendered !== null && rendered.key === requestKey ? rendered : null;
+  const text = current?.text ?? null;
+  const error = current?.error ?? null;
+
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -58,7 +69,7 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
   }
 
   useEffect(() => {
-    if (jobId === null || jobId === undefined) return;
+    if (jobId === null || jobId === undefined || requestKey === null) return;
     /*
      * `cancelled` rather than an AbortController: `renderTranscript` is an IPC
      * round trip with no cancellation on the other end, so the only thing worth
@@ -66,18 +77,22 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
      * format B after the user has already switched.
      */
     let cancelled = false;
-    setText(null);
-    setError(null);
     void (async () => {
       try {
-        const rendered = await renderTranscript(jobId, format);
-        if (!cancelled) setText(rendered);
+        const out = await renderTranscript(jobId, format);
+        if (!cancelled) setRendered({ key: requestKey, text: out, error: null });
       } catch (caught) {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : 'The transcript could not be rendered.');
+        if (!cancelled) {
+          setRendered({
+            key: requestKey,
+            text: null,
+            error: caught instanceof Error ? caught.message : 'The transcript could not be rendered.',
+          });
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [jobId, format, renderTranscript]);
+  }, [jobId, format, requestKey, renderTranscript]);
 
   useEffect(() => {
     if (jobId === null || jobId === undefined) return;

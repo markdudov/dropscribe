@@ -184,9 +184,9 @@ async function httpJson(
   } catch (cause) {
     if (signal.aborted) throw cause instanceof Error ? cause : new Error('Cancelled.');
     if (timedOut) {
-      throw new Error(`OpenRouter did not answer within ${Math.round(timeoutMs / 1000)} seconds.`);
+      throw new Error(`OpenRouter did not answer within ${Math.round(timeoutMs / 1000)} seconds.`, { cause });
     }
-    throw new Error('Could not reach OpenRouter. Check your internet connection.');
+    throw new Error('Could not reach OpenRouter. Check your internet connection.', { cause });
   } finally {
     clearTimeout(timer);
     signal.removeEventListener('abort', onAbort);
@@ -774,7 +774,10 @@ export const openrouterAdapter: ProviderAdapter = {
       audio = await readFile(request.filePath);
     } catch (cause) {
       const code = isRecord(cause) ? asString(cause['code']) : undefined;
-      throw new Error(`Could not read the prepared audio for upload${code !== undefined ? ` (${code})` : ''}.`);
+      throw new Error(
+        `Could not read the prepared audio for upload${code !== undefined ? ` (${code})` : ''}.`,
+        { cause },
+      );
     }
 
     if (audio.byteLength === 0) {

@@ -579,7 +579,7 @@ function toMs(value: unknown): number | null {
  * returns, turning a diagnosable situation into a `SyntaxError` in the job list.
  */
 async function jsonBody(response: Response): Promise<unknown> {
-  let raw = '';
+  let raw: string;
   try {
     raw = await response.text();
   } catch {
