@@ -85,6 +85,15 @@ import { createQueue } from './transcribe/queue';
  */
 const REPO_URL = 'https://github.com/markdudov/dropscribe';
 const ISSUES_URL = `${REPO_URL}/issues`;
+/*
+ * The two donation destinations, here rather than in the renderer for the same
+ * reason every other URL is: the renderer names an intent and main decides what
+ * that means. A payment page is exactly the kind of destination worth being
+ * strict about — a compromised renderer that could pick the URL could send
+ * somebody to a page that looks like this one and is not.
+ */
+const PAYPAL_URL = 'https://www.paypal.com/paypalme/markdudov';
+const REVOLUT_URL = 'https://revolut.me/markdudov';
 
 /**
  * How long a key test or a model-list fetch may run before it is abandoned.
@@ -680,11 +689,14 @@ async function openFromMenu(): Promise<void> {
  * Compared against fully built literals rather than parsed into a prefix and an
  * id, so `provider-key:` plus something that merely looks like a provider id
  * cannot reach `findProvider`. The set of openable URLs is exactly: this repo,
- * its issues, and the two documented URLs each provider declares.
+ * its issues, the two donation pages, and the two documented URLs each provider
+ * declares.
  */
 function resolveExternalLink(link: string): string | null {
   if (link === 'repo') return REPO_URL;
   if (link === 'issues') return ISSUES_URL;
+  if (link === 'support:paypal') return PAYPAL_URL;
+  if (link === 'support:revolut') return REVOLUT_URL;
   for (const provider of PROVIDERS) {
     if (link === `provider-key:${provider.id}`) return provider.keyUrl;
     if (link === `provider-docs:${provider.id}`) return provider.docsUrl;

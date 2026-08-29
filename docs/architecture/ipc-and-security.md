@@ -301,3 +301,13 @@ one file through enqueue, extract, decode and export.
 **`JobError.detail` is a bug-report field, and it is still redacted.** It carries
 ffmpeg's stderr tail and provider error bodies. `JobError.message` is the
 user-facing half and may not contain a stack trace, a home directory or a URL.
+
+## The donation links go through the same allowlist as everything else
+
+`ExternalLinkId` gained `support:paypal` and `support:revolut`, and the URLs
+live in `main.ts` beside `REPO_URL`, not in the component that renders the
+buttons. That is not consistency for its own sake: a payment page is the single
+most valuable destination for a compromised renderer to be able to choose. If
+the renderer could name the URL, `shell.openExternal` would be a way to send
+somebody to a page that looks like this one and is not. It names an intent; main
+decides what that means.

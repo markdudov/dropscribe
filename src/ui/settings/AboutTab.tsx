@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Heart, Loader2, XCircle } from 'lucide-react';
 
 import { api, useStore } from '../store';
 
@@ -144,6 +144,38 @@ export function AboutTab(): JSX.Element {
             <ExternalLink aria-hidden className="h-4 w-4" />
             Report a problem
           </button>
+        </section>
+
+        {/*
+          * Below the links and above the licences, which is where it belongs:
+          * someone reading this far is already curious about the project. It is
+          * a sentence and two buttons, not a banner — nothing in the app is
+          * withheld behind it, and a nag would be the wrong thing to put in a
+          * tool people run on their own files.
+          */}
+        <section className="surface p-4" aria-labelledby="about-support">
+          <h3
+            id="about-support"
+            className="flex items-center gap-2 text-sm font-semibold tracking-[-0.01em] text-slate-900 dark:text-slate-100"
+          >
+            <Heart aria-hidden className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            Supporting DropScribe
+          </h3>
+          <p className="mt-1 max-w-prose text-[0.8125rem] leading-relaxed text-slate-500 dark:text-slate-400">
+            The app is free and MIT licensed, and it stays that way — there is no paid tier and nothing is held back.
+            Keeping it signed and notarized costs money, though. If it saves you work and you would like to chip in,
+            it is entirely optional and a good bug report is worth as much.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={GHOST} onClick={() => { void openExternal('support:paypal'); }}>
+              <ExternalLink aria-hidden className="h-4 w-4" />
+              PayPal
+            </button>
+            <button type="button" className={GHOST} onClick={() => { void openExternal('support:revolut'); }}>
+              <ExternalLink aria-hidden className="h-4 w-4" />
+              Revolut
+            </button>
+          </div>
         </section>
 
         <section className="surface p-4" aria-labelledby="about-licenses">

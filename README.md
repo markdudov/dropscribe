@@ -198,6 +198,20 @@ for one.
 Contributing? Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 [`docs/README.md`](docs/README.md), which is the map of the documentation.
 
+## Supporting the project
+
+DropScribe is free and MIT licensed, and it stays that way. There is no paid
+tier, nothing is held back, and nothing phones home.
+
+It does cost money to keep going, though — an Apple Developer membership so the
+macOS builds are signed and notarized rather than greeted by a warning, and the
+time that goes into them. If it saves you work and you would like to chip in:
+
+- [PayPal](https://www.paypal.com/paypalme/markdudov)
+- [Revolut](https://revolut.me/markdudov)
+
+Entirely optional. A good bug report is worth as much.
+
 ## Licences
 
 | Component | Licence |

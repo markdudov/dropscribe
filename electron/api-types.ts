@@ -98,6 +98,8 @@ export interface AppInfo {
 export type ExternalLinkId =
   | 'repo'
   | 'issues'
+  | 'support:paypal'
+  | 'support:revolut'
   | `provider-key:${ProviderId}`
   | `provider-docs:${ProviderId}`;
 

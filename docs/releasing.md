@@ -209,6 +209,37 @@ The API key wins if both are present. It is the better one for a shared
 repository — it is scoped and revocable on its own, where an app-specific
 password is attached to the whole Apple ID.
 
+### Notarizing from a maintainer's Mac instead
+
+There is a third credential shape, and it is the one to reach for when the
+person setting this up does not want to hand a secret to anybody — including to
+whoever is driving the terminal:
+
+```bash
+# Run once, by hand. It prompts for an app-specific password from
+# appleid.apple.com and stores it in the login keychain under a name.
+xcrun notarytool store-credentials dropscribe \
+  --apple-id <the Apple ID> --team-id HF47JP67YN
+```
+
+After that, `APPLE_KEYCHAIN_PROFILE=dropscribe` is enough for electron-builder
+to notarize — a **name**, not a secret, so it can sit in a script, a shell
+history or a commit message without consequence. The certificate never has to be
+exported either: `codesign` reads it straight from the keychain.
+
+```bash
+APPLE_KEYCHAIN_PROFILE=dropscribe \
+  npx electron-builder --mac --arm64 --x64 --publish never \
+    --config.mac.identity= --config.mac.notarize=true
+```
+
+What it costs is provenance. A release built this way came off one person's
+laptop, so `SHA256SUMS` stops being a thing anyone else can reproduce from the
+tag, and the two Mac architectures are only as trustworthy as that machine. It
+is the right trade when the alternative is not notarizing at all, and the wrong
+one as a permanent arrangement — CI with `CSC_LINK` is still where this should
+end up.
+
 Notarization adds a few minutes to the macOS job: the app is uploaded to Apple,
 waits for a verdict, and the ticket is stapled into the bundle before the dmg is
 built around it. When it works, the first-launch dialog is simply gone.
