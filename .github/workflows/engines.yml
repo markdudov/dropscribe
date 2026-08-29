@@ -1,0 +1,266 @@
+name: Engines
+
+# Builds the two whisper.cpp CLIs for macOS and publishes them as an
+# `engines-<ref>` release, which `vendor/binaries.json` then pins by URL and
+# SHA-256.
+#
+# This workflow exists for one measured reason: **upstream publishes no macOS
+# binaries at all.** Release `b4938` of ggml-org/whisper.cpp carries
+# `whisper-bin-x64.zip`, the BLAS and cuBLAS variants, `whisper-bin-Win32.zip`,
+# the Ubuntu tarballs and an xcframework. There is no Darwin CLI on either
+# architecture, and the xcframework is a static library for an Xcode target, not
+# something `spawn()` can run. See docs/engines/verification.md, item 2, which
+# also gives the `gh release view` command to re-check that list before anyone
+# concludes this job is redundant next to a two-line curl. Windows is the
+# opposite case and is NOT built here: upstream's zip is taken as-is, DLLs and
+# all, by scripts/fetch-binaries.mjs.
+#
+# Manual only, and rarely. Engine releases happen when whisper.cpp is bumped —
+# a handful of times a year — never as part of an app release.
+on:
+  workflow_dispatch:
+    inputs:
+      whisper_ref:
+        description: 'ggml-org/whisper.cpp ref to build: a tag, a branch or a commit sha'
+        required: true
+        default: b4938
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      # Only this job writes, and only to create the engines release.
+      contents: write
+
+    env:
+      # The dispatch input goes through the environment rather than being
+      # interpolated into the `run` scripts below. Dispatching this workflow
+      # already requires write access, so the threat is small, but a `${{ }}`
+      # expansion inside a shell script is textual substitution into the script
+      # source, and that is a habit worth not having in a public repository.
+      WHISPER_REF: ${{ inputs.whisper_ref }}
+
+    steps:
+      # This repository, not whisper.cpp. The tag `engines-<ref>` is created
+      # here and has to point at a commit of THIS repo; the checkout is also
+      # what gives the release step a repository context.
+      - uses: actions/checkout@v4
+
+      - name: Clone whisper.cpp at the requested ref
+        run: |
+          set -euo pipefail
+          # A full clone, deliberately. `--depth 1 --branch "$WHISPER_REF"` is
+          # faster and works only for tags and branches — it fails outright on
+          # the commit sha this input explicitly accepts, and it fails at clone
+          # time with an error about a remote ref, which reads like the ref does
+          # not exist.
+          git clone https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+          git -C whisper.cpp checkout --detach "$WHISPER_REF"
+          resolved="$(git -C whisper.cpp rev-parse HEAD)"
+          echo "WHISPER_SHA=$resolved" >> "$GITHUB_ENV"
+          echo "whisper.cpp $WHISPER_REF resolves to $resolved"
+
+      # ---------------------------------------------------------------------
+      # The flags below are measured, not chosen. Both legs share five of them:
+      #
+      #   -DCMAKE_BUILD_TYPE=Release
+      #   -DGGML_METAL=ON
+      #   -DGGML_METAL_EMBED_LIBRARY=ON      compiles the Metal shader source
+      #       INTO the executable. Without it the binary looks for
+      #       `ggml-metal.metal` beside itself at run time, and that loose data
+      #       file does not survive being copied into `Resources/bin` by
+      #       electron-builder. The failure is not a startup error: it is a
+      #       silent fall back to CPU on a user's machine. The run log proves
+      #       the flag took, with `ggml_metal_library_init: using embedded metal
+      #       library`.
+      #   -DBUILD_SHARED_LIBS=OFF            makes each tool self-contained.
+      #       `otool -L` on the result lists only OS frameworks (Accelerate,
+      #       Metal, MetalKit, Foundation, CoreFoundation, libSystem, libc++,
+      #       libobjc) and nothing from the build tree. That is why the macOS
+      #       half of `vendor/bin/` is four bare files with no @rpath fix-ups
+      #       and no dylibs to sign one by one, while upstream's *shared*
+      #       Windows build costs twelve extra DLLs.
+      #   -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF   nothing here
+      #       ships whisper-server, and the tests are minutes of runner time
+      #       spent on code this job does not publish.
+      #
+      # The default `all` target is built rather than `--target whisper-cli
+      # parakeet-cli`: the two flags above already remove the expensive extras,
+      # and naming targets makes this job break with a CMake error the day
+      # upstream renames one, instead of just producing a couple of binaries
+      # nobody copies out.
+      # ---------------------------------------------------------------------
+      - name: Build darwin-arm64
+        run: |
+          set -euo pipefail
+          cmake -S whisper.cpp -B cmake-arm64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DGGML_METAL=ON \
+            -DGGML_METAL_EMBED_LIBRARY=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_SERVER=OFF
+          cmake --build cmake-arm64 --config Release -j"$(sysctl -n hw.ncpu)"
+
+      - name: Build darwin-x64
+        run: |
+          set -euo pipefail
+          # Same source tree, same flags, cross-compiled on the arm64 runner —
+          # plus the one flag that makes it possible at all.
+          #
+          # `-DGGML_NATIVE=OFF` is not an optimisation preference. With it ON
+          # (the default) ggml probes the CPU it is *running on*, decides it is
+          # an Apple M2, and emits `-mcpu=apple-m2` into the compile line for a
+          # target that is x86_64. clang refuses the combination outright:
+          #
+          #     error: unknown target CPU 'apple-m2'
+          #
+          # so the leg does not silently produce a bad binary, it fails to
+          # compile. Turning it off gives a generic x86-64 baseline, which is
+          # what a redistributable Intel build wants anyway: this binary has to
+          # run on every Mac Apple ever shipped with an Intel chip, not on the
+          # one that compiled it.
+          #
+          # Metal stays ON here. Metal is not exclusive to Apple silicon, and it
+          # was `GGML_NATIVE`, not `GGML_METAL`, that broke this cross-build at
+          # compile time. (docs/releasing.md describes this leg as `-DGGML_METAL=OFF`;
+          # the flags in this file are the ones that were actually run.)
+          cmake -S whisper.cpp -B cmake-x64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DGGML_NATIVE=OFF \
+            -DGGML_METAL=ON \
+            -DGGML_METAL_EMBED_LIBRARY=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_SERVER=OFF
+          cmake --build cmake-x64 --config Release -j"$(sysctl -n hw.ncpu)"
+
+      - name: Stage, verify architecture, compress and hash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          : > dist/TABLE.md
+          printf '| asset | arch | bytes | sha256 of the uncompressed executable |\n' >> dist/TABLE.md
+          printf '| --- | --- | ---: | --- |\n' >> dist/TABLE.md
+
+          for pair in 'cmake-arm64:darwin-arm64:arm64' 'cmake-x64:darwin-x64:x86_64'; do
+            dir="${pair%%:*}"
+            rest="${pair#*:}"
+            key="${rest%%:*}"
+            want="${rest##*:}"
+
+            for tool in whisper-cli parakeet-cli; do
+              # whisper.cpp puts executables in <builddir>/bin, but `find` is
+              # used rather than that path being hard-coded: a layout change
+              # upstream would otherwise be discovered as a release with two
+              # assets missing instead of as a failed job.
+              # `-print -quit` and not `| head -n 1`: with `set -o pipefail`
+              # in force, head closing the pipe early kills find with
+              # SIGPIPE and takes the whole step down on a success.
+              src="$(find "$dir" -type f -name "$tool" -perm -u+x -print -quit)"
+              if [ -z "$src" ]; then
+                echo "::error::$tool was not produced by the $key build"
+                exit 1
+              fi
+
+              name="$tool-$key"
+              cp "$src" "dist/$name"
+
+              # The check the whole workflow turns on. A cross-build that
+              # quietly falls back to the host architecture is the single most
+              # likely way this job can lie: the assets appear, the hashes get
+              # pinned, and the Intel dmg ships arm64 engines that report
+              # `present: true` right up until `posix_spawn` returns EBADARCH on
+              # a user's machine. `lipo -archs` prints exactly `arm64` or
+              # `x86_64` for a single-architecture Mach-O, so the comparison
+              # is an equality, not a grep. A universal binary would print
+              # both and fail here, which is also right: the manifest pins
+              # one file per architecture.
+              got="$(lipo -archs "dist/$name")"
+              if [ "$got" != "$want" ]; then
+                echo "::error::$name is '$got', expected '$want' — the cross-build fell back to the host"
+                exit 1
+              fi
+
+              # The SHA-256 that goes into `vendor/binaries.json` is of the
+              # UNCOMPRESSED executable, because that is what the fetch script
+              # hashes: it downloads the .gz, gunzips it, and compares the
+              # digest of the bytes it is about to write. Publishing the hash of
+              # the .gz instead would look completely reasonable on this page
+              # and would fail every `npm ci` afterwards with a mismatch that
+              # reads like a tampered asset.
+              sha="$(shasum -a 256 "dist/$name" | awk '{ print $1 }')"
+              bytes="$(wc -c < "dist/$name" | tr -d ' ')"
+
+              # `-n` keeps the original name and mtime out of the gzip header,
+              # so two runs of identical bytes produce identical archives. The
+              # manifest does not pin the archive, but an asset that changes
+              # byte-for-byte on every rebuild makes "is this the same build?"
+              # unanswerable without decompressing it.
+              gzip -9 -n -c "dist/$name" > "dist/$name.gz"
+
+              printf '| `%s.gz` | %s | %s | `%s` |\n' "$name" "$got" "$bytes" "$sha" >> dist/TABLE.md
+            done
+          done
+
+          {
+            echo "### whisper.cpp \`$WHISPER_REF\` (\`$WHISPER_SHA\`)"
+            echo
+            cat dist/TABLE.md
+            echo
+            echo 'Repin with these: edit the `engines-*` URLs in `vendor/binaries.json`, then `npm run binaries:hashes` to have the script re-measure and write them back.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compose the release body
+        run: |
+          set -euo pipefail
+          # The same table goes on the release page and not only in the job
+          # summary: summaries expire with the workflow run, and the hashes are
+          # needed by whoever repins `vendor/binaries.json` months later.
+          {
+            echo "Built from [ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp) at \`$WHISPER_REF\` (\`$WHISPER_SHA\`) by [.github/workflows/engines.yml](https://github.com/markdudov/dropscribe/blob/main/.github/workflows/engines.yml)."
+            echo
+            echo 'These are build artifacts, not an app release. [DropScribe](https://github.com/markdudov/dropscribe) pins them in `vendor/binaries.json`; `scripts/fetch-binaries.mjs` downloads them into `vendor/bin/darwin-<arch>/` and verifies each against the hash below. Windows engines are not here — upstream publishes those itself.'
+            echo
+            cat dist/TABLE.md
+            echo
+            echo 'The hashes are of the **uncompressed** executables, which is what the fetch script verifies after gunzipping.'
+            echo
+            echo '## Build flags'
+            echo
+            echo '```'
+            echo 'cmake -DCMAKE_BUILD_TYPE=Release \'
+            echo '  -DCMAKE_OSX_ARCHITECTURES=<arm64|x86_64> \'
+            echo '  -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON \'
+            echo '  -DBUILD_SHARED_LIBS=OFF \'
+            echo '  -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF'
+            echo '# the x86_64 leg adds -DGGML_NATIVE=OFF'
+            echo '```'
+            echo
+            echo '`GGML_METAL_EMBED_LIBRARY` puts the Metal shaders inside the binary, because a loose `.metal` file does not survive being copied into an app bundle. `BUILD_SHARED_LIBS=OFF` leaves each tool linked against nothing but OS frameworks. `GGML_NATIVE=OFF` on the Intel leg stops ggml probing the arm64 build host and emitting `-mcpu=apple-m2` for an x86_64 target, which clang rejects.'
+            echo
+            echo '## About `engines-b4938`'
+            echo
+            echo 'That tag already exists. Its four binaries were built by hand, on an Apple M2 Pro, from exactly these flags — this workflow was written afterwards to make the next bump reproducible rather than to replace them. Re-dispatching against a ref whose release already exists replaces the assets on it, so do that only if you mean to.'
+            echo
+            echo '**Engine releases are append-only.** Every app tag whose `vendor/binaries.json` names one needs it to keep existing: deleting it breaks `npm ci` for anyone building that tag from source, breaks any CI re-run of it, and breaks the reproducibility the pinned hashes exist to provide.'
+          } > release-body.md
+          cat release-body.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: engines-${{ inputs.whisper_ref }}
+          name: whisper.cpp engines ${{ inputs.whisper_ref }}
+          body_path: release-body.md
+          files: dist/*.gz
+          # Not the repository's "Latest release". Without this, an engines
+          # release cut after v0.1.0 becomes the release GitHub shows on the
+          # repository home page and behind /releases/latest, and someone
+          # arriving to download the app is handed four gzipped CLI binaries
+          # instead.
+          make_latest: false

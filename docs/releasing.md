@@ -166,9 +166,12 @@ name. **More info** → **Run anyway** gets through it. Unsigned installers also
 accumulate SmartScreen reputation per-binary, so this does not improve as the
 project ages — each new release starts from zero.
 
-Unsigned also means no auto-update: `electron-updater` is a dependency but is
-not wired to a feed, because shipping an unsigned update channel is a worse idea
-than shipping no update channel. Users come back to the Releases page by hand,
+Unsigned also means no auto-update. `electron-updater` was removed from
+`dependencies` — it was never imported, and electron-builder packs every
+production dependency, so an unused updater was dead weight in the bundle and a
+promise the app could not keep. Wiring an updater back in waits on code
+signing, because shipping an unsigned update channel is a worse idea than
+shipping no update channel. Users come back to the Releases page by hand,
 and the release notes have to say so.
 
 ### The words about the missing signature

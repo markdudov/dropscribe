@@ -1,0 +1,291 @@
+# Build, tooling and packaging
+
+## Commands
+
+```bash
+npm run dev              # electron-vite dev, through scripts/dev.mjs
+npm test                 # vitest run
+npm run typecheck        # tsc --noEmit on BOTH projects
+npm run lint             # eslint . --max-warnings=0
+npm run build            # typecheck, then electron-vite build
+npm run pack             # build, then electron-builder --publish never
+npm run binaries:fetch   # scripts/fetch-binaries.mjs — vendored executables for THIS host
+npm run binaries:hashes  # the same script with --write-hashes, to re-pin the manifest
+```
+
+`npm run build` typechecks first, on purpose. A type error that only surfaces in
+a packaged app is a type error found by a user.
+
+`postinstall` runs `scripts/fetch-binaries.mjs` with no argument, which fetches
+**the host's own target and nothing else**. That is right for a developer who
+wants a working checkout on the machine they are sitting at, and wrong for a
+release — see [../releasing.md](../releasing.md), where the macOS job has to
+fetch twice and the reason it is easy to lose in a refactor is spelled out.
+
+`npm run dev` goes through `scripts/dev.mjs` rather than calling the
+`electron-vite` binary directly: on Windows the `.bin` shim is a batch file that
+`spawn` cannot launch, so the script resolves the module and spawns it through
+`node`.
+
+## Two TypeScript projects
+
+`tsconfig.json` is a solution file with no files of its own, referencing two
+real projects.
+
+| Project | Includes | `types` | Path aliases |
+| --- | --- | --- | --- |
+| `tsconfig.node.json` | `electron/**/*`, `scripts/**/*`, the config files, `test/node/**/*` | `node` | `@shared/*` |
+| `tsconfig.web.json` | `src/**/*`, `test/**/*` (minus `test/node`), and a **specific list** of `electron/` files | `vite/client`, `vitest/globals` | `@/*`, `@shared/*` |
+
+Both run `strict` plus `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`. The last one is why optional properties are spread
+conditionally everywhere in this codebase rather than assigned `undefined`:
+
+```ts
+...(detail !== undefined ? { detail } : {})
+```
+
+The `electron/` files the *web* project pulls in are the ones deliberately kept
+free of `node:` and `electron` imports, so that the renderer can import them
+directly and the jsdom test suite can exercise them with no Electron runtime
+around it. **`tsconfig.web.json`'s `include` is the authority on which they
+are** — read it rather than trusting a list here, which is exactly how a
+paragraph like this one falls behind. At the time of writing it names:
+
+- `electron/api-types.ts` — the bridge's type, which both sides must agree on;
+- `electron/shared/**/*` — `transcript`, `subtitles`, `exports`, `jobs`,
+  `models`, `providers`, `languages`, `media-extensions`;
+- `electron/media-extensions.ts` — a **stale entry**. That file lives at
+  `electron/shared/media-extensions.ts` and is already covered by the glob
+  above. TypeScript does not complain about an `include` entry that matches
+  nothing as long as something else matches, so it sits there harmlessly. It is
+  worth knowing it is a leftover and not a second, differently-located copy.
+
+Keeping those files import-free is a hard rule, and it is load-bearing in three
+places: `exports.ts` renders the preview *and* the written file, `subtitles.ts`
+produces the cues both sides count, and `api-types.ts` is the reason main,
+preload and the renderer cannot disagree about a channel's shape.
+`engines/chunking.ts` obeys the same rule (its only import is a type) even
+though it is not in the web project yet — it is pure so that its arithmetic can
+be tested without spawning anything.
+
+### `noEmit` on the node project
+
+`tsconfig.node.json` sets `noEmit: true`, and the comment beside it explains
+why. This is not cosmetic and it is not "we do not need the output". Without it,
+`tsc` writes compiled `electron/*.js` next to the sources, **and Vite resolves
+`.js` before `.ts`** — so every later edit to a main-process file is silently
+ignored while the stale compiled copy is bundled instead. The symptom is the
+worst kind: the code you are reading is provably correct and the app behaves as
+if it were not.
+
+`composite: true` on both projects is what makes the reference from
+`tsconfig.json` legal, and it is why `tsconfig.*.tsbuildinfo` files appear at
+the repo root.
+
+## Vite configuration
+
+Two configs, and they are not redundant:
+
+- **`electron.vite.config.ts`** — the real app build. Three targets: `main`
+  (`electron/main.ts`, ESM, deps externalized), `preload` (`electron/preload.ts`,
+  forced to **CJS** with a `.cjs` extension, because a sandboxed preload cannot
+  be ESM), and `renderer` (React, root `src`, entry `src/index.html`, aliases
+  `@` → `src` and `@shared` → `electron/shared`).
+- **`vite.config.ts`** — vitest only, and it says so in a comment on line 4.
+  jsdom environment, the same two aliases, `test/**/*.test.ts(x)`. Nothing about
+  the app build lives here.
+
+The `@shared` alias is declared three times — once per electron-vite target and
+once for vitest — plus once per tsconfig. That duplication is annoying and
+correct: each of those tools resolves modules on its own, and a single
+"canonical" list would have to be read by a plugin nobody wants to maintain.
+
+## Vendored binaries
+
+Four executables per platform, none of them from npm and none of them from the
+user's `PATH`: `ffmpeg`, `ffprobe`, `whisper-cli`, `parakeet-cli`.
+
+`vendor/binaries.json` is the manifest. Each platform-and-architecture target
+pins, per file, the source URL, the archive kind, and a **SHA-256 of the
+extracted bytes**. `scripts/fetch-binaries.mjs` downloads, verifies and unpacks
+into `vendor/bin/<platform>-<arch>/`, which is **gitignored** — the repository
+carries hashes, not binaries.
+
+Be clear-eyed about what those hashes prove. Unlike the model hashes in
+`electron/shared/models.ts`, which are read from Hugging Face's own LFS metadata
+and are therefore an independent statement about the file, these are computed
+from bytes we downloaded ourselves. They do not prove a binary is good. What
+they pin is that **every later build gets the identical bytes**: CI a year from
+now, and anyone building from the tag, resolve to exactly what was reviewed
+today, and an asset silently replaced upstream fails loudly instead of shipping.
+
+Where those bytes are read from at run time is `electron/binaries-runtime.ts`,
+and there are two layouts behind one lookup: `vendor/bin/<platform>-<arch>/` in
+development, `<process.resourcesPath>/bin/` when packaged. The dev layout is
+keyed by platform and arch because one checkout is shared between machines far
+more often than you would think; the packaged layout is not, because an
+installer only ever carries the platform it was built for.
+
+`enginesReady()` checks `X_OK`, not mere existence, on macOS — a binary that was
+downloaded but never made executable exists and still fails with EACCES the
+moment a job starts, and reporting that on a settings screen beats reporting it
+mid-transcription.
+
+### macOS is built here; Windows comes from upstream, DLLs and all
+
+**Upstream whisper.cpp publishes no macOS binaries.** Not "publishes ones we do
+not like" — release `b4938` carries Windows zips, Ubuntu tarballs and an
+xcframework, and the xcframework is a static library for embedding in an Xcode
+target, not something `spawn()` can run. So `.github/workflows/engines.yml`
+compiles both CLIs on a macOS runner and publishes them as an `engines-<ref>`
+release that `vendor/binaries.json` then pins.
+
+That is less painful than it sounds, because the macOS build is self-contained:
+`-DBUILD_SHARED_LIBS=OFF` and `-DGGML_METAL_EMBED_LIBRARY=ON` produce
+executables whose `otool -L` lists nothing but OS frameworks, with the Metal
+shader source compiled *into* the binary rather than sitting beside it as a
+loose file somebody would have to remember to copy. Four bare executables, no
+dependency graph. The measurements behind every one of those flags are in
+[../engines/verification.md](../engines/verification.md).
+
+**Windows is downloaded, and two `.exe` files are not enough.**
+`whisper-bin-x64.zip` genuinely contains `whisper-cli.exe` and
+`parakeet-cli.exe`, so there is nothing to build — but upstream builds it with
+shared libraries, and the executables are inert without their siblings:
+
+- `whisper.dll`, `parakeet.dll` — the engines;
+- `ggml.dll`, `ggml-base.dll` — the tensor library and its base ops;
+- the whole `ggml-cpu-*.dll` family: `sse42`, `x64`, `sandybridge`, `haswell`,
+  `skylakex`, `icelake`, `cascadelake`, `cannonlake`, `alderlake`.
+
+That last set is **ggml's run-time dispatch table, not duplication**. ggml
+probes the CPU at startup and loads the best match. Ship only `haswell` and the
+app dies on machines that would have loaded `sse42` — on hardware no developer
+on this project owns, in a loader dialog that appears before a single line of
+our code runs, so there is no stderr to parse and nothing `engineReport()` can
+explain. Take all nine. What is deliberately *not* taken is `llama.dll`,
+`SDL2.dll` and every other `.exe` in the archive; they belong to examples this
+app does not ship.
+
+This is also why `binaryPath()` returns paths inside one **flat** `bin/`
+directory and why nothing is ever copied out of it: Windows resolves a DLL from
+the executable's own folder first. Copy `whisper-cli.exe` to a temp directory to
+work around a path quirk and it dies at load time. Spawn it where it sits and
+pass the odd path as an argument instead.
+
+## Nothing is packaged unverified
+
+`afterPack: ./scripts/verify-packaged-binaries.mjs` is the last gate before an
+artifact leaves the machine. It opens the `Resources/bin` that actually landed
+inside the packed app and reads the **Mach-O or PE header of every binary in
+it**, refusing the pack when the CPU type does not match the artifact being
+produced, or when a binary is missing or mis-hashed.
+
+It exists because of a specific, silent failure. **electron-builder does not
+fail a build when an `extraResources` source is absent** — it logs one warning
+and carries on. A forgotten `binaries:fetch --target darwin-x64` therefore
+produces a complete, signable Intel `.app` with no engines in it at all, and
+nothing upstream catches that: `enginesReady()` and `engineReport()` answer *is
+the file there*, which is exactly what a wrong-architecture or missing binary
+also answers on the machine that built it. The first honest signal is
+`posix_spawn` returning `EBADARCH`, on a user's Mac, at the end of the extract
+stage of their first job.
+
+`afterPack` rather than `beforeBuild`, deliberately: `beforeBuild` is skipped
+for `--prepackaged` and for `npmRebuild: false`, and a gate that can be
+configured off is not a gate. `afterPack` fires unconditionally, once per
+platform-and-arch pack, *after* extra resources are copied and *before* any
+signing step — so it asserts against the bytes a user will actually run, and
+still aborts in time.
+
+If it starts failing, do not skip it and do not add an exception. It is
+reporting the bug it was written to find.
+
+## Packaging
+
+electron-builder ships **the target's** binary directory, keyed by `${arch}`:
+
+- `mac.extraResources`: `vendor/bin/darwin-${arch}` → `bin`
+- `win.extraResources`: `vendor/bin/win32-${arch}` → `bin`
+
+Never `${platform}`. That macro expands to the **build host**, not the shipping
+target, which is precisely the mistake this arrangement exists to prevent.
+
+Because they arrive through `extraResources`, the binaries are never inside the
+asar and need no `asarUnpack`. `THIRD-PARTY-NOTICES.md` travels the same way and
+lands beside them, which is what `licenseNoticePath()` in
+`electron/binaries-runtime.ts` looks for — it checks a small candidate list
+because two different tools decide where that file goes (the fetch script writes
+it next to the binaries, the builder copies it into `Resources/`), and a licence
+notice that fails to open is a compliance problem rather than a cosmetic one.
+
+**Models are not bundled.** The recommended Whisper turbo weights alone are
+1.6 GB and large-v3 is 3.1 GB. Shipping them would multiply the installer for
+every user, including the cloud-only ones who need no model at all. They are
+downloaded on demand into `<userData>/models/`, resumable, hash-verified and
+deletable from the UI.
+
+**Icons.** `build/icon.svg` is the source; the build carries the `.icns` for the
+macOS bundle, the multi-resolution `.ico` for the Windows title bar and taskbar
+(given only a 256×256 PNG, Windows downscales to 16 px itself and the result
+looks soft), and a PNG for the About panel.
+
+## macOS entitlements
+
+The hardened runtime is what notarization requires, and it refuses by default
+several things Chromium does as a matter of course. The entitlement file named
+by `mac.entitlements` is also named by `mac.entitlementsInherit`, because the
+renderer and GPU helpers need the same permissions the main bundle does and a
+helper signed without them crashes at launch.
+
+| Entitlement | Why this app needs it |
+| --- | --- |
+| `com.apple.security.cs.allow-jit` | V8 compiles JavaScript to machine code at run time. Under the hardened runtime, mapping a page as writable and then executable is refused without this, and the process dies during startup rather than during anything you could debug |
+| `com.apple.security.cs.allow-unsigned-executable-memory` | Chromium creates executable mappings that the stricter `MAP_JIT` path `allow-jit` covers does not account for. The pair is what Electron's own hardened-runtime guidance ships, and dropping the second one produces crashes that only appear in a signed build |
+| `com.apple.security.cs.allow-dyld-environment-variables` | Electron launches its helper processes with `DYLD_*` variables set. The hardened runtime otherwise strips them, and the helpers come up wrong |
+
+What is **deliberately absent** matters as much, because each of these is
+routinely copied into an entitlements file by people who do not need it:
+
+- **`com.apple.security.cs.disable-library-validation`** — nothing loads a
+  third-party dylib into this app's process. The vendored engines are separate
+  processes, and they are statically linked: `otool -L whisper-cli` lists OS
+  frameworks and nothing else (see
+  [../engines/verification.md](../engines/verification.md)). Adding this would
+  weaken the app to solve a problem it does not have.
+- **App Sandbox entitlements** (`com.apple.security.app-sandbox`,
+  `com.apple.security.files.user-selected.read-write`) — this is a
+  directly-distributed app, not a Mac App Store one. The path allowlist in
+  `electron/path-policy.ts` is the app's own answer to the same question, and it
+  is enforced in main where the app can explain a refusal in a sentence.
+- **`com.apple.security.device.audio-input`** — the app never records. It reads
+  files the user hands it.
+
+Spawning the vendored binaries needs no entitlement at all: a hardened process
+may exec another executable, and the child runs under its own signature. What it
+*does* need is for each of those executables to be signed and included in the
+notarization submission — they are Mach-O files inside the bundle, and
+notarization checks all of them, not just the app shell. Metal-accelerated
+inference needs no entitlement either.
+
+## What is not wired
+
+**Signing and notarization.** There is no Apple Developer ID and no Windows
+code-signing certificate behind these builds today. The consequences — Gatekeeper
+refusing a double-click, SmartScreen's blue panel — and the exact words that
+must appear in every release are in [../releasing.md](../releasing.md). The
+entitlements above exist now so that the first signed build is a certificate
+problem and not also a discovery exercise.
+
+**Auto-update.** Not wired, and `electron-updater` is no longer a dependency.
+That is deliberate while the builds are unsigned: an
+unsigned update channel is a worse idea than no update channel, because it is a
+mechanism for replacing the app that nothing verifies. Users return to the
+Releases page by hand, and the release notes say so.
+
+**Linux.** `AppInfo.platform` admits `'linux'` because `process.platform` does,
+not because anything is shipped for it. There are no `linux-*` rows in
+`vendor/binaries.json`, so a Linux target would package with no engines by
+exactly the silent path described above. Adding Linux means adding manifest
+entries and someone who actually runs the app there — it is not a `target:` key.

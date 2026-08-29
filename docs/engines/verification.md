@@ -451,3 +451,57 @@ node scripts/verify-model-catalogue.mjs
 | Point the Parakeet entries at the `.gguf` files | wrong magic; `parakeet-cli` rejects them outright. Item 6 |
 | Recompute the catalogue hashes from downloaded files | a hash of bytes you already trusted proves nothing. Item 7 |
 | Adopt sherpa-onnx for Parakeet | already evaluated; it works, and it costs a second runtime, format, accelerator and upstream. Item 8 |
+
+## Which Windows DLLs actually have to ship (measured 2026-08-29)
+
+Guessing this wrong produces an app that works on every developer's machine and
+fails to start the engine on a user's. So the PE import tables of the two
+executables in `whisper-bin-x64.zip` were read directly:
+
+| binary | direct imports found in the zip |
+| --- | --- |
+| `whisper-cli.exe`  | `whisper.dll`, `ggml.dll` |
+| `parakeet-cli.exe` | `parakeet.dll`, `ggml.dll` |
+
+Following those transitively closes at four files: `whisper.dll`, `parakeet.dll`,
+`ggml.dll` and `ggml-base.dll`. Everything else each binary names —
+`KERNEL32.dll`, `MSVCP140.dll`, `VCRUNTIME140*.dll` and the
+`api-ms-win-crt-*` set — is the system C runtime.
+
+**The nine `ggml-cpu-*.dll` files appear in no import table and must ship
+anyway.** `ggml-base.dll` loads them at runtime through its backend registry,
+picking the one matching the host microarchitecture (sse42, x64, sandybridge,
+haswell, skylakex, icelake, cascadelake, cannonlake, alderlake). A dependency
+walker will not find them; a user on an unlucky CPU will.
+
+`llama.dll` and `SDL2.dll` are in the same zip and are deliberately **not**
+vendored: they belong to `whisper-talk-llama` and the streaming examples, and
+neither `whisper-cli` nor `parakeet-cli` imports them.
+
+Re-measure with the import-table reader if the upstream tag changes:
+unzip the release, then read each `.exe`'s import directory and follow it
+transitively over the files present in the archive.
+
+## Whisper's progress granularity is the file's, not ours (measured 2026-08-29)
+
+A short job appears to hang at the start of the transcription band and then jump
+straight to done. It is not a bug in the adapter, and the next person to "fix" it
+will be removing working code.
+
+`whisper-cli -pp` emits one `whisper_print_progress_callback: progress = N%` line
+per decode window, and a window is 30 seconds of audio. Measured against the same
+build and model:
+
+| audio | progress lines emitted |
+| --- | --- |
+| 5.4 s   | **1** (`100%`) |
+| 171.2 s | 11 |
+
+So a five-second clip genuinely has one progress event in it, and the run
+observed through the app went 15 % → 100 %. The same code on the 171 s file
+reported 15 → 29 → 43 → 58 → 61 → 64 → 67 → 73 → 87 → 100, which is the 15–100
+band the queue maps whisper's 0–100 into.
+
+The steps are also uneven — 58, 61, 64, 67 — because whisper re-runs a window at a
+higher temperature when the decoder fails a threshold. A UI must therefore never
+infer a rate or an ETA from the delta between two progress events.

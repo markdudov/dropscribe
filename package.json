@@ -33,7 +33,6 @@
     "subtitles"
   ],
   "dependencies": {
-    "electron-updater": "^6.6.2",
     "lucide-react": "^0.468.0",
     "zustand": "^5.0.2"
   },

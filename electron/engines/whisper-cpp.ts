@@ -23,62 +23,21 @@ import { cpus, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import { binaryPath } from '../binaries-runtime';
-import type { Segment, Transcript, Word } from '../shared/transcript';
+import type { Transcript } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
+// The JSON parsing lives next door, free of node and electron imports, so both
+// TypeScript projects compile it and its tests need no Electron runtime.
+import { isRecord, languageFromJson, segmentsFromJson } from './whisper-json';
 import type { LocalEngine, LocalRunContext, LocalRunRequest } from './types';
 
 /** `whisper_print_progress_callback: progress =  42%` — always on stderr, never stdout. */
 const PROGRESS_LINE = /progress\s*=\s*(\d+)\s*%/;
 
 /**
- * Special tokens whisper emits alongside real text: `[_BEG_]`, `[_TT_123]`,
- * and the annotations `[BLANK_AUDIO]` / `[MUSIC]`. Anything wholly wrapped in
- * brackets is dropped. That does discard the audio-event annotations some users
- * like, but they carry no useful timing of their own and would otherwise be
- * glued onto the next real word by the merge below.
- */
-const BRACKETED = /^\[.*\]$/;
-
-/**
  * How much stderr travels with a failure. Enough to hold whisper's own error
  * plus the model-load banner above it, small enough to paste into an issue.
  */
 const STDERR_TAIL_LINES = 40;
-
-/**
- * A word is finished when the accumulated text ends a sentence, because the
- * token after a full stop frequently arrives without the leading space that
- * normally marks a word boundary.
- *
- * The known cost is decimals: `3` + `.` + `14` becomes `3.` and `14`. Requiring
- * the next token to look like a new sentence would fix that and break on
- * languages that do not capitalise, so the cheap rule wins.
- */
-const SENTENCE_END = /[.!?…。！？][)"'”’\]]?$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readNumber(source: Record<string, unknown>, key: string): number | null {
-  const value = source[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function readString(source: Record<string, unknown>, key: string): string | null {
-  const value = source[key];
-  return typeof value === 'string' ? value : null;
-}
-
-/** `offsets` on a segment or a token. Already integer milliseconds — see the file header. */
-function readOffsets(owner: Record<string, unknown>): { from: number; to: number } | null {
-  const offsets = owner['offsets'];
-  if (!isRecord(offsets)) return null;
-  const from = readNumber(offsets, 'from');
-  const to = readNumber(offsets, 'to');
-  if (from === null || to === null) return null;
-  return { from, to };
-}
 
 interface LineSink {
   push(chunk: string): void;
@@ -132,132 +91,6 @@ function cancelledError(): Error {
   const error = new Error('Transcription cancelled.');
   error.name = 'AbortError';
   return error;
-}
-
-function isSpecialToken(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return false;
-  return BRACKETED.test(trimmed) || trimmed.startsWith('[_');
-}
-
-interface PendingWord {
-  text: string;
-  startMs: number;
-  endMs: number;
-  /** Lowest `p` seen so far, or `null` when no token carried one. */
-  weakest: number | null;
-}
-
-/**
- * Merge whisper's sub-word tokens into words.
- *
- * whisper tokenises `" transcription"` as `" trans"` + `"cription"`, and the
- * leading space is part of the token text — that space is the entire word
- * boundary signal, which is why the raw text is inspected before trimming.
- */
-function wordsFromTokens(tokens: readonly unknown[]): Word[] {
-  const words: Word[] = [];
-  let pending: PendingWord | null = null;
-  let boundaryPending = false;
-
-  const flush = (): void => {
-    if (pending === null) return;
-    const text = pending.text.trim();
-    if (text.length > 0) {
-      words.push({
-        text,
-        startMs: pending.startMs,
-        endMs: Math.max(pending.endMs, pending.startMs),
-        // MINIMUM, not mean: a word is only as trustworthy as its worst token.
-        // Averaging lets three confident sub-word tokens hide the one the model
-        // was guessing at, and it is precisely that word a reviewer needs to see
-        // flagged.
-        ...(pending.weakest !== null ? { confidence: pending.weakest } : {}),
-      });
-    }
-    pending = null;
-  };
-
-  for (const token of tokens) {
-    if (!isRecord(token)) continue;
-    const raw = readString(token, 'text');
-    if (raw === null || isSpecialToken(raw)) continue;
-    if (raw.trim().length === 0) {
-      // A whitespace-only token carries no text but still separates words, so
-      // remember the boundary for the next token that does have some.
-      boundaryPending = true;
-      continue;
-    }
-    const offsets = readOffsets(token);
-    if (offsets === null) continue;
-
-    const startsWord =
-      pending === null || boundaryPending || /^\s/.test(raw) || SENTENCE_END.test(pending.text.trimEnd());
-    if (startsWord) flush();
-    boundaryPending = false;
-
-    const probability = readNumber(token, 'p');
-    if (pending === null) {
-      pending = { text: raw, startMs: offsets.from, endMs: offsets.to, weakest: probability };
-    } else {
-      pending.text += raw;
-      pending.endMs = Math.max(pending.endMs, offsets.to);
-      pending.weakest =
-        probability === null
-          ? pending.weakest
-          : pending.weakest === null
-            ? probability
-            : Math.min(pending.weakest, probability);
-    }
-  }
-
-  flush();
-  return words;
-}
-
-function segmentsFromJson(root: Record<string, unknown>): Segment[] {
-  const raw = root['transcription'];
-  if (!Array.isArray(raw)) return [];
-
-  const segments: Segment[] = [];
-  for (const entry of raw) {
-    if (!isRecord(entry)) continue;
-    const tokens = entry['tokens'];
-    const words = Array.isArray(tokens) ? wordsFromTokens(tokens) : [];
-    const offsets = readOffsets(entry);
-    const first = words[0];
-    const last = words[words.length - 1];
-
-    // `-ojf` is what puts `tokens` in the file. If a future build drops it the
-    // segment text is still usable, just not word-timed, so fall back rather
-    // than throwing away the transcription.
-    const text = (readString(entry, 'text') ?? '').trim() || words.map((w) => w.text).join(' ');
-    if (text.length === 0) continue;
-    // whisper marks a stretch of silence with a segment whose entire text is
-    // `[BLANK_AUDIO]` and whose only token was dropped above. Keeping it would
-    // put a subtitle on screen that reads "[BLANK_AUDIO]" during the silence,
-    // which is worse than no cue at all — and worse than the gap it describes.
-    if (words.length === 0 && BRACKETED.test(text)) continue;
-
-    const startMs = offsets?.from ?? first?.startMs ?? 0;
-    const endMs = offsets?.to ?? last?.endMs ?? startMs;
-    segments.push({ startMs, endMs, text, words });
-  }
-  return segments;
-}
-
-/**
- * `result.language` is the language whisper actually decoded in, which is the
- * detected one when `-l auto` was passed and the requested one otherwise.
- * `auto` and `und` are echoes, not detections, so they become `null` — the
- * transcript contract is explicit that a language is never invented.
- */
-function languageFromJson(root: Record<string, unknown>): string | null {
-  const result = root['result'];
-  if (!isRecord(result)) return null;
-  const language = (readString(result, 'language') ?? '').trim().toLowerCase();
-  if (language.length === 0 || language === 'auto' || language === 'und') return null;
-  return language;
 }
 
 /**

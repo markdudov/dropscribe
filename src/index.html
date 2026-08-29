@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DropScribe</title>
+
+    <!--
+      The renderer's own content policy, declared in the document rather than
+      only in a `session.webRequest` header, so it travels with the page: a
+      window opened from a build where someone forgot the header still lands
+      here locked down.
+
+      `default-src 'self'` and nothing else is listed for a reason worth
+      stating plainly: **this app never loads a remote resource.** No font CDN,
+      no analytics beacon, no avatar from an API, no telemetry. Every byte the
+      renderer displays either shipped inside the asar or came across the IPC
+      bridge from main. There is therefore no origin to allow, and a policy with
+      no remote origin in it is the only one that cannot silently acquire one.
+
+      Network access is main's job. The renderer cannot reach a provider's API
+      at all — `connect-src 'self'` sees to that — which is what keeps an API
+      key out of this process even in principle.
+
+      `style-src` carries `'unsafe-inline'` because Tailwind's runtime injects a
+      `<style>` element, and because React writes inline `style` attributes for
+      the progress bars. It is the one concession, and it is on styles rather
+      than on scripts, where it would matter.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data:;
+               font-src 'self';
+               media-src 'self';
+               connect-src 'self';
+               object-src 'none';
+               frame-src 'none';
+               child-src 'none';
+               worker-src 'none';
+               base-uri 'none';
+               form-action 'none'"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      Absolute, not relative: `electron.vite.config.ts` sets the renderer root to
+      `src/`, so `/main.tsx` is `src/main.tsx` both under the dev server and in
+      the production build's rewritten asset path.
+    -->
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

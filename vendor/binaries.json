@@ -1,0 +1,288 @@
+{
+  "$comment": "Pinned engine binaries. Materialised into vendor/bin/<target>/ by scripts/fetch-binaries.mjs, which runs from postinstall. Every sha256 here is filled by measurement, never by hand: npm run binaries:hashes -- --target <target>.",
+  "$hashes": "sha256 is of the EXTRACTED bytes — the executable that lands in vendor/bin/ — not of the .gz or .zip that carried it. That is the only hash worth pinning: it is the file that runs, it is stable across a repackaged archive, and it is what verify-packaged-binaries.mjs re-measures inside the built app. A null hash is not 'unpinned, take it on trust'; the fetcher refuses to write anything for it. See scripts/fetch-binaries.mjs.",
+  "$unpinned": "Only darwin-arm64 is pinned today, because that is the one architecture this project's binaries have actually been fetched and measured on. darwin-x64 and win32-x64 carry the right urls and members with null hashes, so they fail loudly rather than installing unverified bytes. Filling them is one command per target on a machine with the network: npm run binaries:hashes -- --target darwin-x64. Do that, review the diff, and commit it before cutting a release that includes those targets — the release runbook (docs/releasing.md) fetches both Mac architectures from one runner and will stop here until they are pinned.",
+  "$facts": "version, license, arch and libraries describe the pinned bytes. Where a field could not be measured on this machine it says so in that entry's $note rather than guessing: a near-miss version in a GPL source offer misleads exactly the person the offer exists for.",
+  "$source": "source is a LIST and must stay complete. These are static builds, so the corresponding source GPLv3 obliges us to offer is FFmpeg's tree AND every library compiled into the executable AND the scripts that pin and configure them. Naming git.ffmpeg.org alone would leave a recipient unable to rebuild what they were given. scripts/binaries.mjs renders every element as a bullet under the entry's heading in THIRD-PARTY-NOTICES.md.",
+  "licenses": {
+    "GPL-3.0.txt": {
+      "url": "https://github.com/markdudov/silencetrimmer-media-binaries/releases/download/n7.1.5/COPYING.GPLv3",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "$note": "The GPLv3 text as published alongside the macOS ffmpeg pair by the same repository that built them — the publisher's own copy of the licence its binaries are under, fetched and hash-pinned like everything else here rather than transcribed into vendor/licenses/ by hand. 35,147 bytes, the canonical FSF text. One entry covers all three targets: it is the same licence on every one of them."
+    },
+    "MIT-whisper.cpp.txt": {
+      "url": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/b4938/LICENSE",
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "$note": "whisper.cpp's own LICENSE at tag b4938 — the exact upstream ref both engine CLIs are built from on every target. A tag and not a branch, because MIT asks that the notice which accompanied THIS code travel with it, and the copyright line on master moves. Repin this alongside the engines-<ref> urls whenever whisper.cpp is bumped."
+    }
+  },
+  "targets": {
+    "darwin-arm64": {
+      "ffmpeg": {
+        "version": "n7.1.5",
+        "arch": "arm64",
+        "url": "https://github.com/markdudov/silencetrimmer-media-binaries/releases/download/n7.1.5/ffmpeg-darwin-arm64.gz",
+        "archive": "gz",
+        "sha256": "5dc835a4090599be56130628a4b5c8a369928b0f9045d5c4cd78e0d0ddc9495a",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "libraries": [
+          "libx264",
+          "libx265",
+          "libzimg"
+        ],
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, tag n7.1.5 — the exact tag this was built from, unpatched.",
+          "The build itself: https://github.com/markdudov/silencetrimmer-media-binaries — a public repository holding scripts/build-ffmpeg-macos.sh, the script that produced this executable, and with it the configure options used and the pinned revision of every library statically linked into it: x264 b35605ac, x265 4.2 (multilib 8/10/12-bit), zimg release-3.0.5. The script fetches each of those from its own upstream at the revision named there."
+        ],
+        "$note": "Not a Homebrew or ffmpeg-static build. DropScribe extracts a 16 kHz mono WAV and expects byte-identical output on every machine, which a build with a different codec set does not give you. Configured --enable-gpl --enable-version3 and never --enable-nonfree; links only against /usr/lib and /System, so it carries no runtime dependency of its own."
+      },
+      "ffprobe": {
+        "version": "n7.1.5",
+        "arch": "arm64",
+        "url": "https://github.com/markdudov/silencetrimmer-media-binaries/releases/download/n7.1.5/ffprobe-darwin-arm64.gz",
+        "archive": "gz",
+        "sha256": "52a104c7e7f41cb4d6955f88a76df511ea4dbabd658c5d137bb28810976944cc",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, tag n7.1.5 — the exact tag this was built from, unpatched.",
+          "The build itself: https://github.com/markdudov/silencetrimmer-media-binaries — a public repository holding scripts/build-ffmpeg-macos.sh, the script that produced this executable, and with it the configure options used and the pinned revision of every library statically linked into it: x264 b35605ac, x265 4.2 (multilib 8/10/12-bit), zimg release-3.0.5. The script fetches each of those from its own upstream at the revision named there."
+        ],
+        "$note": "Same build as the ffmpeg beside it, which is the point: probe and extract must agree about every container, and they only do that when they are the same FFmpeg. Native arm64 — the widely-used ffprobe-static package ships an x86_64 Mach-O in its arm64 directory, so every probe on an Apple Silicon Mac went through Rosetta 2."
+      },
+      "whisper-cli": {
+        "version": "b4938",
+        "arch": "arm64",
+        "url": "https://github.com/markdudov/dropscribe/releases/download/engines-b4938/whisper-cli-darwin-arm64.gz",
+        "archive": "gz",
+        "sha256": "207a39ef54cbaf35562662e6722e1be54021dd9d1ce46cb0a6aaf8075990b86b",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched.",
+          "The build itself: .github/workflows/engines.yml in this repository, which clones that ref, builds it on a GitHub arm64 macOS runner and publishes the result as the engines-b4938 release. The workflow file records the exact cmake flags each architecture is built with; they are deliberately not copied into this manifest, where they would be a second version of the truth that nobody re-measures."
+        ],
+        "$note": "Upstream publishes no macOS assets at all — the release carries Windows zips and mobile framework bundles and nothing for Darwin — so these two are built here. The macOS build is statically linked against ggml and whisper and dynamically against Accelerate, Metal, Foundation and libSystem only, which is why one bare executable is the whole delivery on this platform and Windows needs thirteen DLLs beside it."
+      },
+      "parakeet-cli": {
+        "version": "b4938",
+        "arch": "arm64",
+        "url": "https://github.com/markdudov/dropscribe/releases/download/engines-b4938/parakeet-cli-darwin-arm64.gz",
+        "archive": "gz",
+        "sha256": "d3552345a8603c6453fc38e2b397bcd83d571cbf4548a2b81f87251b7862eba3",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched.",
+          "The build itself: .github/workflows/engines.yml in this repository, which clones that ref, builds it on a GitHub arm64 macOS runner and publishes the result as the engines-b4938 release. The workflow file records the exact cmake flags each architecture is built with; they are deliberately not copied into this manifest, where they would be a second version of the truth that nobody re-measures."
+        ],
+        "$note": "Same tree and same workflow leg as whisper-cli — Parakeet is a model family inside whisper.cpp b4938, not a separate project, which is why one upstream ref pins both engines and one MIT notice covers both."
+      }
+    },
+    "darwin-x64": {
+      "ffmpeg": {
+        "version": "n7.1.5",
+        "arch": "x64",
+        "url": "https://github.com/markdudov/silencetrimmer-media-binaries/releases/download/n7.1.5/ffmpeg-darwin-x64.gz",
+        "archive": "gz",
+        "sha256": "ea5cee5d83728a7d126fc6d2aad5dff8798f874c3cb0f9e09136178458b8252b",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "libraries": [
+          "libx264",
+          "libx265",
+          "libzimg"
+        ],
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, tag n7.1.5 — the exact tag this was built from, unpatched.",
+          "The build itself: https://github.com/markdudov/silencetrimmer-media-binaries — a public repository holding scripts/build-ffmpeg-macos.sh, the script that produced this executable, and with it the configure options used and the pinned revision of every library statically linked into it: x264 b35605ac, x265 4.2 (multilib 8/10/12-bit), zimg release-3.0.5. The script fetches each of those from its own upstream at the revision named there."
+        ],
+        "$note": "UNPINNED — sha256 is null and the fetcher will refuse this target until it is filled. Same script and same library pins as the arm64 pair, but cross-compiled from an arm64 Mac (--enable-cross-compile --arch=x86_64), so it has never been executed on Intel hardware. Both Mac architectures are on one FFmpeg version on purpose: a probe and an extract that disagree about a container is a bug that only reproduces on half the fleet."
+      },
+      "ffprobe": {
+        "version": "n7.1.5",
+        "arch": "x64",
+        "url": "https://github.com/markdudov/silencetrimmer-media-binaries/releases/download/n7.1.5/ffprobe-darwin-x64.gz",
+        "archive": "gz",
+        "sha256": "ddf484547cb6fee91c620df6b8b9405e811371a1909db6e4bce156f9240fdfce",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, tag n7.1.5 — the exact tag this was built from, unpatched.",
+          "The build itself: https://github.com/markdudov/silencetrimmer-media-binaries — a public repository holding scripts/build-ffmpeg-macos.sh, the script that produced this executable, and with it the configure options used and the pinned revision of every library statically linked into it: x264 b35605ac, x265 4.2 (multilib 8/10/12-bit), zimg release-3.0.5. The script fetches each of those from its own upstream at the revision named there."
+        ],
+        "$note": "UNPINNED — sha256 is null. Same cross-compiled build as the ffmpeg beside it."
+      },
+      "whisper-cli": {
+        "version": "b4938",
+        "arch": "x64",
+        "url": "https://github.com/markdudov/dropscribe/releases/download/engines-b4938/whisper-cli-darwin-x64.gz",
+        "archive": "gz",
+        "sha256": "101e069a0be6c5680fdc7bc538b9fe4ad18fc1b04601c3f524c5eddf3bb784e5",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched.",
+          "The build itself: .github/workflows/engines.yml in this repository, which clones that ref, builds it on a GitHub arm64 macOS runner and publishes the result as the engines-b4938 release. The workflow file records the exact cmake flags each architecture is built with; they are deliberately not copied into this manifest, where they would be a second version of the truth that nobody re-measures."
+        ],
+        "$note": "UNPINNED — sha256 is null. Cross-compiled on the arm64 runner. Check `file whisper-cli-darwin-x64` says x86_64 before repinning: a cross-build that silently falls back to the host architecture is the most likely way that workflow lies to you, and nothing downstream can tell the difference until a user's Intel Mac fails to exec it."
+      },
+      "parakeet-cli": {
+        "version": "b4938",
+        "arch": "x64",
+        "url": "https://github.com/markdudov/dropscribe/releases/download/engines-b4938/parakeet-cli-darwin-x64.gz",
+        "archive": "gz",
+        "sha256": "bad88ce9c0dcbe4d76369e2a6646ab04dff90c85d0cdbe00f8b325efc133e0e6",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched.",
+          "The build itself: .github/workflows/engines.yml in this repository, which clones that ref, builds it on a GitHub arm64 macOS runner and publishes the result as the engines-b4938 release. The workflow file records the exact cmake flags each architecture is built with; they are deliberately not copied into this manifest, where they would be a second version of the truth that nobody re-measures."
+        ],
+        "$note": "UNPINNED — sha256 is null. Same leg as the whisper-cli beside it."
+      }
+    },
+    "win32-x64": {
+      "ffmpeg": {
+        "version": "n8.1.2-50-g1a748fe2cd",
+        "arch": "x64",
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-29-13-12/ffmpeg-n8.1.2-50-g1a748fe2cd-win64-gpl-8.1.zip",
+        "archive": "tar",
+        "member": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-gpl-8.1/bin/ffmpeg.exe",
+        "sha256": "54b48af675c41dccf544ab309d447cf4f0ac9530d20efc496a2c35b3795cb6ac",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "linksMoreLibraries": true,
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, commit 1a748fe2cd — fifty commits after tag n8.1.2, per BtbN's own git-describe naming (n8.1.2-50-g1a748fe2cd). The tag alone is NOT this build.",
+          "The build itself: https://github.com/BtbN/FFmpeg-Builds at tag autobuild-2026-08-29-13-12 — the public repository whose Dockerfiles and per-library scripts produced this executable, and with them the pinned revision of every third-party library statically linked into it. The win64-gpl configuration links far more than libx264/libx265/libzimg, a mix of GPL, LGPL and permissive licences; each one's source is fetched by those scripts at the revision pinned there."
+        ],
+        "$archive": "archive says \"tar\" because that names the EXTRACTOR the fetcher runs, not the container: the asset is a .zip, and bsdtar — which is `tar` on macOS and on Windows 10 1803+ — reads zip happily. GNU tar does not, which is the one place this shorthand bites. See extract() in scripts/fetch-binaries.mjs.",
+        "$version": "Taken from the asset name, NOT measured out of the bytes: this target has never been fetched on the machine that wrote this file, and the executable's own version string carries a build date suffix (…-2026MMDD) that cannot be invented. Re-measure it with `ffmpeg -version` on a Windows box, or by reading the configure line out of the file, in the same commit that fills sha256 — the licence notice prints this field, and a near-miss version in a GPL source offer misleads the person it exists for.",
+        "$note": "UNPINNED — sha256 is null and the fetcher will refuse this target until it is filled. Pinned to a DATED autobuild tag and never to `latest`, whose assets are overwritten in place, which would make any hash here a lie the next time anyone fetched. The 7.1 branch BtbN was publishing when the macOS pair was built is no longer among its autobuilds, so the Windows side is a version ahead of the Macs; that is a real inconsistency to close the next time the macOS pair is rebuilt, not something to paper over by pinning a tag that no longer exists.",
+        "$linkedLicences": "The permissive libraries in this build ask that their own notice be reproduced with the binary, and this project does not yet generate that aggregate — THIRD-PARTY-NOTICES.md points at BtbN's scripts.d at the pinned tag and the written offer covers the rest. That is honest but it is not the same thing as shipping the texts. Generating them (fetch each upstream's licence file at the revision the recipe pins) is the outstanding piece of work on this target, and it belongs in the same change that first pins these hashes."
+      },
+      "ffprobe": {
+        "version": "n8.1.2-50-g1a748fe2cd",
+        "arch": "x64",
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-29-13-12/ffmpeg-n8.1.2-50-g1a748fe2cd-win64-gpl-8.1.zip",
+        "archive": "tar",
+        "member": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-gpl-8.1/bin/ffprobe.exe",
+        "sha256": "6f51ce206326f339c7558b1afd53c34104a7289b50a34e1de45e49127ab28033",
+        "license": "GPL-3.0-or-later",
+        "licenseFile": "GPL-3.0.txt",
+        "nonfree": false,
+        "source": [
+          "FFmpeg itself: https://git.ffmpeg.org/ffmpeg.git, commit 1a748fe2cd — fifty commits after tag n8.1.2, per BtbN's own git-describe naming (n8.1.2-50-g1a748fe2cd). The tag alone is NOT this build.",
+          "The build itself: https://github.com/BtbN/FFmpeg-Builds at tag autobuild-2026-08-29-13-12 — the public repository whose Dockerfiles and per-library scripts produced this executable, and with them the pinned revision of every third-party library statically linked into it. The win64-gpl configuration links far more than libx264/libx265/libzimg, a mix of GPL, LGPL and permissive licences; each one's source is fetched by those scripts at the revision pinned there."
+        ],
+        "$note": "UNPINNED — sha256 is null. Same 168 MB archive as the ffmpeg beside it: one url, two members, and the fetcher downloads it once per run for both. Same $version caveat as that entry."
+      },
+      "whisper-cli": {
+        "version": "b4938",
+        "arch": "x64",
+        "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-x64.zip",
+        "archive": "tar",
+        "member": "Release/whisper-cli.exe",
+        "sha256": "800a0fd754afa75e109c7248286ad735670fb6b23d92ca5d12604647ef638a65",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "extraMembers": [
+          {
+            "file": "whisper.dll",
+            "member": "Release/whisper.dll",
+            "sha256": "0a29e5824c7495185b833ad07df7ab9cadf130a9be848f967c6b88aeca971566"
+          },
+          {
+            "file": "ggml.dll",
+            "member": "Release/ggml.dll",
+            "sha256": "4e77ead4ecc32324f9432acb06ee71444708880ca6780c918baa6903389ba257"
+          },
+          {
+            "file": "ggml-base.dll",
+            "member": "Release/ggml-base.dll",
+            "sha256": "cb1dfa532b8bf14c3cd54d8bd7ef12b8d07d3f7d85dbef01c135c1475e08ed38"
+          },
+          {
+            "file": "ggml-cpu-sse42.dll",
+            "member": "Release/ggml-cpu-sse42.dll",
+            "sha256": "674320166d86f18573f8e0e99efcdb90cfa6b7b05b42d9465976ef5e70e5e4a3"
+          },
+          {
+            "file": "ggml-cpu-x64.dll",
+            "member": "Release/ggml-cpu-x64.dll",
+            "sha256": "ffc1938f2ce3b52cef0e0935c6ce953bb5cc5593757ea55872ae4c4ee8bd577a"
+          },
+          {
+            "file": "ggml-cpu-sandybridge.dll",
+            "member": "Release/ggml-cpu-sandybridge.dll",
+            "sha256": "e5cb5b8ecbc52ffc05d54f8456db41eb17036bb6848592f7df8666f0ade12cdb"
+          },
+          {
+            "file": "ggml-cpu-haswell.dll",
+            "member": "Release/ggml-cpu-haswell.dll",
+            "sha256": "f52a4824868b8d9ac48f814edeb4f7382e28371f093ef6e115077fb7125bf830"
+          },
+          {
+            "file": "ggml-cpu-skylakex.dll",
+            "member": "Release/ggml-cpu-skylakex.dll",
+            "sha256": "4784b7f45e7b5199981e7ba8c391cd1b5d4aa74413a0929cfd0a6d909098c30e"
+          },
+          {
+            "file": "ggml-cpu-icelake.dll",
+            "member": "Release/ggml-cpu-icelake.dll",
+            "sha256": "161baa9fb0061df74d0f0d83339a68890b2be1ba22b6b406d9a0ea23dbf89628"
+          },
+          {
+            "file": "ggml-cpu-cascadelake.dll",
+            "member": "Release/ggml-cpu-cascadelake.dll",
+            "sha256": "bef920f38f26432fa456ad7beda8a35b11d8719d10d198c08e61d1bc33c0ba40"
+          },
+          {
+            "file": "ggml-cpu-cannonlake.dll",
+            "member": "Release/ggml-cpu-cannonlake.dll",
+            "sha256": "aab6d7e3c1707bd7cbb4da2061fd59fee5d6e3f4fe71606ab1a43ac814f1d89f"
+          },
+          {
+            "file": "ggml-cpu-alderlake.dll",
+            "member": "Release/ggml-cpu-alderlake.dll",
+            "sha256": "660886106a61537002c52cf0c7021bc8a8060174cc802ed650b9bfb77eb9183a"
+          }
+        ],
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched. This target is upstream's own release asset, not a build of ours.",
+          "The build itself: upstream's release workflow at that tag, https://github.com/ggml-org/whisper.cpp/tree/b4938/.github/workflows, which produced whisper-bin-x64.zip."
+        ],
+        "$note": "UNPINNED — sha256 is null, here and on all twelve DLLs. Windows is the one target taken from upstream rather than built here, because upstream actually publishes it. The DLLs are NOT optional and NOT a subset to taste: this build is dynamically linked, and ggml probes the running CPU at startup and loads whichever ggml-cpu-* variant fits it, so shipping only the one this developer's machine wanted produces a process that dies at load time on hardware nobody on the project owns. All nine microarchitecture variants travel. Deliberately not taken: llama.dll and SDL2.dll, which belong to whisper-talk-llama and the streaming examples, neither of which this app ships, and every other .exe in the archive. Fifteen files come out of this one archive — the two .exe files and the thirteen DLLs — and land in vendor/bin/win32-x64/ beside the ffmpeg pair. See docs/releasing.md."
+      },
+      "parakeet-cli": {
+        "version": "b4938",
+        "arch": "x64",
+        "url": "https://github.com/ggml-org/whisper.cpp/releases/download/b4938/whisper-bin-x64.zip",
+        "archive": "tar",
+        "member": "Release/parakeet-cli.exe",
+        "sha256": "1536a7bc8f646b1ad18e806959cd762f77f6ad747c42d2ac72624aff8eee4ccb",
+        "license": "MIT",
+        "licenseFile": "MIT-whisper.cpp.txt",
+        "extraMembers": [
+          {
+            "file": "parakeet.dll",
+            "member": "Release/parakeet.dll",
+            "sha256": "8f864b1008c8b98861583a09ea6035c547cb46a9715b609c7dd7ccca138d1b7e"
+          }
+        ],
+        "source": [
+          "whisper.cpp at tag b4938: https://github.com/ggml-org/whisper.cpp/tree/b4938 — unpatched. This target is upstream's own release asset, not a build of ours.",
+          "The build itself: upstream's release workflow at that tag, https://github.com/ggml-org/whisper.cpp/tree/b4938/.github/workflows, which produced whisper-bin-x64.zip."
+        ],
+        "$note": "UNPINNED — sha256 is null. Same archive and same download as whisper-cli. Only parakeet.dll is listed here: the ggml stack it also needs is already listed on whisper-cli's entry, and extraMembersFor() deduplicates by destination filename so the same DLL is never fetched or written twice. Splitting them this way keeps each entry naming the library that is actually its own."
+      }
+    }
+  }
+}

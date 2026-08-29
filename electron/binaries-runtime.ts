@@ -119,7 +119,7 @@ export function enginesReady(): boolean {
 /**
  * The third-party licence notice covering the vendored binaries and the models.
  *
- * ffmpeg is LGPL/GPL and whisper.cpp is MIT; shipping their binaries obliges us
+ * ffmpeg is GPL-3.0-or-later and whisper.cpp is MIT; shipping their binaries obliges us
  * to ship their notices, and `app:licenses` reads this file to show them.
  *
  * The candidate list exists because two different tools decide where the file

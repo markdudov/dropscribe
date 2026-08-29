@@ -37,146 +37,16 @@ import { spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 
 import { binaryPath } from '../binaries-runtime';
-import type { Segment, Transcript, Word } from '../shared/transcript';
+import type { Segment, Transcript } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
+// The token parsing lives next door, free of node and electron imports, so
+// both TypeScript projects compile it and its tests need no Electron runtime.
+import type { ParakeetToken } from './parakeet-tokens';
+import { parseTokenLine, tokensToWords, wordsToSegments } from './parakeet-tokens';
 import type { LocalEngine, LocalRunContext, LocalRunRequest } from './types';
 
-/**
- * One `-ps` token line.
- *
- * Written tolerantly on purpose — the columns are space-padded to different
- * widths depending on the magnitude of each number, so every gap is `\s+` and
- * every value is captured rather than positioned.
- */
-const TOKEN_LINE =
-  /^\s*\[\s*\d+\]\s+id=\s*(-?\d+)\s+frame=\s*\d+\s+dur_idx=\s*\d+\s+dur_val=\s*\d+\s+p=([\d.]+)\s+plog=(-?[\d.]+)\s+t0=\s*(\d+)\s+t1=\s*(\d+)\s+word_start=(true|false)\s+"(.*)"\s*$/;
-
-/** SentencePiece's word-start marker, U+2581. It is a marker, not a character of the word. */
-const WORD_START_MARKER = '▁';
-
-/** A silence this long between two words starts a new segment. */
-const SEGMENT_GAP_MS = 700;
-/** No segment runs longer than this, so a monologue still breaks into readable units. */
-const SEGMENT_MAX_MS = 15_000;
-
+/** How much stderr travels with a failure: enough for the error and the banner above it. */
 const STDERR_TAIL_LINES = 40;
-
-export interface ParakeetToken {
-  id: number;
-  /** Token probability, 0..1. */
-  p: number;
-  /** Start, in centiseconds as printed. */
-  t0: number;
-  /** End, in centiseconds as printed. */
-  t1: number;
-  wordStart: boolean;
-  /** Raw token text, `▁` marker included. */
-  text: string;
-}
-
-/**
- * One `-ps` line to a token, or `null` for any of the header lines
- * (`parakeet_backend_init*`, `system_info:`, `Processing file:`, `ggml_metal_*`)
- * that share the stream.
- */
-export function parseTokenLine(line: string): ParakeetToken | null {
-  const match = TOKEN_LINE.exec(line);
-  if (!match) return null;
-  const [, id, p, , t0, t1, wordStart, text] = match;
-  if (id === undefined || p === undefined || t0 === undefined || t1 === undefined || wordStart === undefined || text === undefined) {
-    return null;
-  }
-  return {
-    id: Number.parseInt(id, 10),
-    p: Number.parseFloat(p),
-    t0: Number.parseInt(t0, 10),
-    t1: Number.parseInt(t1, 10),
-    wordStart: wordStart === 'true',
-    text,
-  };
-}
-
-/**
- * Tokens → words.
- *
- * `word_start` opens a word; every following token appends to it until the next
- * one. A word's confidence is the MINIMUM probability across its tokens: a word
- * is only as trustworthy as its least certain piece, and averaging would hide a
- * 0.3 syllable behind three 1.0 ones.
- */
-export function tokensToWords(tokens: readonly ParakeetToken[]): Word[] {
-  const words: Word[] = [];
-  let current: { text: string; startCs: number; endCs: number; minP: number } | null = null;
-
-  const flush = (): void => {
-    if (!current) return;
-    const text = current.text.trim();
-    if (text.length > 0) {
-      words.push({
-        text,
-        startMs: current.startCs * 10,
-        endMs: Math.max(current.endCs * 10, current.startCs * 10),
-        confidence: current.minP,
-      });
-    }
-    current = null;
-  };
-
-  for (const token of tokens) {
-    const piece = token.text.split(WORD_START_MARKER).join('');
-    if (token.wordStart || current === null) {
-      flush();
-      current = { text: piece, startCs: token.t0, endCs: token.t1, minP: token.p };
-      continue;
-    }
-    current.text += piece;
-    current.endCs = Math.max(current.endCs, token.t1);
-    current.minP = Math.min(current.minP, token.p);
-  }
-  flush();
-  return words;
-}
-
-/**
- * Words → segments.
- *
- * Parakeet reports no segmentation of its own, so one is derived from silence
- * and from length. These are NOT subtitle cues — `resegment()` builds those
- * later against the user's line-length and reading-speed settings. What this
- * produces is the utterance-sized unit the transcript model expects, and the
- * unit a reader sees in the TXT and Markdown exports.
- */
-export function wordsToSegments(words: readonly Word[]): Segment[] {
-  const segments: Segment[] = [];
-  let bucket: Word[] = [];
-
-  const flush = (): void => {
-    if (bucket.length === 0) return;
-    const first = bucket[0];
-    const last = bucket[bucket.length - 1];
-    if (first && last) {
-      segments.push({
-        startMs: first.startMs,
-        endMs: last.endMs,
-        text: bucket.map((w) => w.text).join(' '),
-        words: [...bucket],
-      });
-    }
-    bucket = [];
-  };
-
-  for (const word of words) {
-    const previous = bucket[bucket.length - 1];
-    const start = bucket[0]?.startMs;
-    if (previous && start !== undefined) {
-      const gap = word.startMs - previous.endMs;
-      if (gap >= SEGMENT_GAP_MS || word.endMs - start > SEGMENT_MAX_MS) flush();
-    }
-    bucket.push(word);
-  }
-  flush();
-  return segments;
-}
 
 /** `Math.max(1, min(8, cores - 2))` — see the note in the queue about leaving cores for the UI. */
 function resolveThreads(requested: number): number {
@@ -207,7 +77,12 @@ async function run(request: LocalRunRequest, ctx: LocalRunContext): Promise<Tran
    * reads as a hang, and one that jumps backwards reads as a failure.
    */
   const startedAt = Date.now();
-  const assumedRtf = process.platform === 'darwin' ? 20 : 6;
+  // Measured on an M2 Pro: 171 s of audio in 3.0 s, a real-time factor of 57.
+  // The assumption here is deliberately well below that. An estimate that runs
+  // AHEAD of reality parks the bar at its 95 % cap for most of the job, which
+  // reads worse than one that lags and then jumps to done. Windows has no Metal
+  // path and falls back to the CPU backend, hence the much lower figure.
+  const assumedRtf = process.platform === 'darwin' ? 35 : 8;
   const ticker = setInterval(() => {
     const elapsed = Date.now() - startedAt;
     const expected = request.durationMs / assumedRtf;

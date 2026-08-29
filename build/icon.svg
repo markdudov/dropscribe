@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="dropscribe-icon-title">
+  <title id="dropscribe-icon-title">DropScribe</title>
+
+  <!--
+    DropScribe app icon — the master. Every raster in this folder is derived
+    from this file; nothing is hand-tuned per size. See README.md to regenerate.
+
+    THE MARK: a chevron pointing down into three lines of text. Media goes in
+    at the top, writing comes out at the bottom — the whole product in one
+    glyph, and one that still survives a 16 px taskbar tile. The obvious
+    alternatives did not survive it, or said the wrong thing: a microphone
+    says "record", which this app never does; a waveform says "audio editor";
+    a speech bubble says "chat"; a document-with-a-corner-fold is what every
+    other file utility already uses. A chevron over baselines says "in goes
+    media, out comes text", and it is the same chevron-down the UI already
+    draws from lucide-react, so the icon and the app are visibly related.
+
+    WHY IT CARRIES ITS OWN BACKGROUND: a white-on-transparent mark disappears
+    on a light Dock and a blue-on-transparent one disappears on a dark
+    taskbar. An opaque rounded square is the only shape guaranteed to read on
+    both, so the icon brings its own ground instead of borrowing the
+    desktop's. Everything outside that square is transparent, which is what
+    macOS wants — it does not clip icons to the squircle for you.
+
+    WHY EVERY SHAPE IS A <path> AND NOTHING ELSE: no <rect>, no <circle>, no
+    <g>, no transform, no gradient, no filter, no CSS, no <defs>. Two reasons.
+    First, this file gets rasterized by whatever the developer happens to have
+    installed — macOS `sips`, librsvg, ImageMagick, a headless browser, or the
+    ~40-line fallback documented in README.md — and "absolute M/L/C/Z paths
+    with a literal fill, or a round-capped stroke" is the only SVG subset all
+    of them reproduce identically. Second, a gradient that reads as depth at
+    1024 px turns to mud at 16 px, and this icon is looked at in a taskbar far
+    more often than it is admired in a Finder preview.
+
+    GEOMETRY (all numbers in the 1024 px canvas):
+
+      - The rounded square is inset 100 px on every side — the ~10 % padding
+        macOS composites app icons with. Edge-to-edge, it would tower over
+        every stock icon in the Dock.
+
+      - Corner radius 184, drawn with the circular-arc Bezier constant
+        0.55228475 (so the control points sit 184 x 0.55228475 = 101.62 from
+        each corner). Apple's real shape is a continuous-curvature squircle;
+        this is the circular approximation, which differs by a couple of
+        pixels at 1024 and by nothing perceptible at 128 and below. Matching
+        the true squircle costs three cubics per corner and a shape the
+        fallback rasterizer could not reproduce — not a trade worth making
+        for two pixels.
+
+      - Nothing is thinner than 74 px = 7.2 % of the canvas. Below about 6 %
+        a stroke lands on less than one whole pixel at 16 px and antialiases
+        itself into a grey smear.
+
+      - The three baselines are 74 thick on a 128 px pitch, centred at y 544,
+        672 and 800. The pitch is deliberately 1024/8: at 16 px that is
+        exactly a 2 px period with each bar centred on a pixel centre
+        (544/64 = 8.5, 672/64 = 10.5, 800/64 = 12.5), and at 48 px likewise
+        (544/21.33 = 25.5). Those are the two sizes where three near-1 px
+        stripes either stay three stripes or collapse into a grey block, and
+        the phase is what decides which. An earlier layout with a 130 px
+        pitch looked identical at 1024 and turned into a solid slab at 16.
+
+      - Artwork occupies x 232..792 and y 187..837, centred on both axes,
+        leaving ~87 px of blue below the mark and ~132 px either side so
+        nothing crowds the corner curve.
+  -->
+
+  <!-- The ground: flat brand blue, no gradient. Clockwise from the top-left corner. -->
+  <path fill="#0b8fe8" d="M 284,100
+    L 740,100 C 841.62,100 924,182.38 924,284
+    L 924,740 C 924,841.62 841.62,924 740,924
+    L 284,924 C 182.38,924 100,841.62 100,740
+    L 100,284 C 100,182.38 182.38,100 284,100 Z" />
+
+  <!--
+    The chevron. Stroke 112 over a 140 px drop across a 420 px span — bold and
+    fairly shallow. A thinner, deeper V looked more elegant at 1024 and fell
+    apart at 16, where the two arms separate into a pair of horns with nothing
+    holding them together. Mass at the join is what keeps it a single shape.
+    Round cap and round join so it reads as the same drawing instrument that
+    made the baselines below.
+  -->
+  <path fill="none" stroke="#ffffff" stroke-width="112" stroke-linecap="round" stroke-linejoin="round"
+        d="M 358,243 L 512,383 L 666,243" />
+
+  <!--
+    Three baselines. Two full width, one short: the ragged last line is the
+    single detail that makes a stack of bars read as prose rather than as a
+    hamburger menu, and it is what stops the icon from looking like a list.
+    Left-aligned under a centred chevron on purpose — with all three centred
+    the block read as a paragraph of poetry, not a transcript.
+  -->
+  <path fill="none" stroke="#ffffff" stroke-width="74" stroke-linecap="round" d="M 269,544 L 755,544" />
+  <path fill="none" stroke="#ffffff" stroke-width="74" stroke-linecap="round" d="M 269,672 L 755,672" />
+  <path fill="none" stroke="#ffffff" stroke-width="74" stroke-linecap="round" d="M 269,800 L 555,800" />
+</svg>

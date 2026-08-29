@@ -1,0 +1,88 @@
+name: CI
+
+# Every push and every pull request. The two overlap for branches pushed to this
+# repository — a PR from `feature/x` triggers both events — which is what the
+# concurrency group below is for. Dropping `push` to avoid the duplication would
+# also stop `main` from being checked, and `main` is what release tags are cut
+# from.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# One run per ref. Pushing three commits in a minute should test the third, not
+# queue three full two-runner matrices; `cancel-in-progress` throws away the
+# superseded ones. Not applied to tags: a release tag's CI run is a record of
+# what was shipped, and nothing supersedes it anyway.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Both legs always run to completion. The entire reason this matrix has
+      # two entries is to catch things that behave differently on Windows —
+      # path separators, line endings, case sensitivity — and killing the macOS
+      # leg the moment Windows goes red hides whether the failure is
+      # platform-specific or just a broken commit.
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The major CONTRIBUTING.md tells contributors to develop against
+          # (`nvm use 22`). Left as a bare major so patch releases arrive
+          # without a workflow edit, which is the level of pinning a pure
+          # typecheck/lint/test job needs; the reproducibility that matters
+          # lives in package-lock.json.
+          node-version: 22
+          cache: npm
+
+      # `--ignore-scripts` skips two postinstalls, and both omissions are the
+      # point.
+      #
+      # `scripts/fetch-binaries.mjs` would download ffmpeg, ffprobe and the two
+      # whisper.cpp CLIs: hundreds of megabytes, per platform, on every push,
+      # from a GitHub release that would then be serving this repository's own
+      # CI as its heaviest client. Nothing below needs them. The test suite is
+      # pure — transcript normalization, subtitle segmentation, export
+      # rendering, path policy, the adapter parsers — with no network, no
+      # Electron and no spawned process anywhere in it. The day a test does
+      # need a real binary, it needs a job that fetches them — not this flag
+      # quietly dropped from this step, which is how a two-minute check becomes
+      # a twenty-minute one nobody waits for.
+      #
+      # Electron's own postinstall goes with it — the runtime zip, which is
+      # the largest single download in the tree. That is safe for a reason
+      # worth stating, because it looks like it should break the typecheck:
+      # `electron`'s types live in `electron.d.ts` INSIDE the npm tarball, and
+      # the postinstall only fetches the runtime that `require('electron')`
+      # would launch. Nothing here launches it.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Three separate steps rather than the `npm test && npm run typecheck &&
+      # npm run lint` one-liner CONTRIBUTING.md gives contributors, so that a
+      # red run says which of the three failed in the job list without anyone
+      # opening a log. The commands themselves are identical: CI running
+      # something weaker than the local checks is how "green locally" stops
+      # meaning anything.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test

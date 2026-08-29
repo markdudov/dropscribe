@@ -7,19 +7,23 @@
     // imports, so the renderer and the jsdom test suite can use them directly.
     // THIS LIST IS THE AUTHORITY on which those are.
     "electron/api-types.ts",
-    "electron/media-extensions.ts",
-    "electron/shared/**/*"
+    "electron/shared/**/*",
+    "electron/engines/whisper-json.ts",
+    "electron/engines/parakeet-tokens.ts",
+    "electron/engines/chunking.ts"
   ],
   "exclude": ["test/node/**/*"],
   "compilerOptions": {
     "composite": true,
+    // The @electron-toolkit base still sets node10, deprecated in TS 6.
+    "moduleResolution": "bundler",
+    "module": "esnext",
     "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "jsx": "react-jsx",
     "types": ["vite/client", "vitest/globals"],
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"], "@shared/*": ["electron/shared/*"] }
+    "paths": { "@/*": ["./src/*"], "@shared/*": ["./electron/shared/*"] }
   }
 }

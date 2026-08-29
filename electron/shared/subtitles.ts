@@ -48,6 +48,20 @@ export interface SegmentationOptions {
   minGapMs: number;
   /** Prefix each cue with `Speaker:` when the transcript is diarized. */
   includeSpeakers: boolean;
+  /**
+   * The media's own length, when the caller knows it.
+   *
+   * The timing pass EXTENDS cues to satisfy `minDurationMs` and the
+   * reading-speed floor, and it has no other way of knowing where the file
+   * ends — so without this a cue can finish after the video does. Measured: a
+   * 5.414 s clip whose last segment ended at 5320 ms produced a cue ending at
+   * 5463 ms. Some players silently drop such a cue and several NLEs refuse the
+   * whole SRT on import, so the failure is not cosmetic.
+   *
+   * Optional because the pure segmentation tests have no media behind them;
+   * `undefined` means "do not clamp".
+   */
+  mediaDurationMs?: number;
 }
 
 export const DEFAULT_SEGMENTATION: SegmentationOptions = {
@@ -63,8 +77,6 @@ export const DEFAULT_SEGMENTATION: SegmentationOptions = {
 
 /** Sentence-final punctuation, including the CJK and Arabic forms. */
 const SENTENCE_END = /[.!?…。！？؟]["'”’»)\]]*$/u;
-/** Punctuation that is a good, but weaker, place to break. */
-const CLAUSE_END = /[,;:、，；：]["'”’»)\]]*$/u;
 
 interface TimedWord {
   text: string;
@@ -259,7 +271,22 @@ function applyTiming(cues: Cue[], opts: SegmentationOptions): Cue[] {
     const latestEnd = next.startMs - opts.minGapMs;
     if (cue.endMs > latestEnd) cue.endMs = Math.max(cue.startMs + 1, latestEnd);
   }
-  return out;
+
+  // The media clamp goes LAST, after both the extension pass and the gap pass.
+  // Clamping earlier would let the gap pass — which only ever shortens — run on
+  // an already-clamped value, and letting the extension pass run afterwards
+  // would push the last cue straight back out past the end.
+  const limit = opts.mediaDurationMs;
+  if (limit === undefined || limit <= 0) return out;
+  const clamped: Cue[] = [];
+  for (const cue of out) {
+    // A cue that begins at or after the end of the media has nothing to show.
+    // This only happens when an engine hallucinates a tail segment, which
+    // whisper does on trailing silence.
+    if (cue.startMs >= limit) continue;
+    clamped.push(cue.endMs > limit ? { ...cue, endMs: limit } : cue);
+  }
+  return clamped;
 }
 
 /** `HH:MM:SS,mmm` for SRT, `HH:MM:SS.mmm` for WebVTT. */

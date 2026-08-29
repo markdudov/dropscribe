@@ -1,0 +1,133 @@
+appId: com.dropscribe.app
+productName: DropScribe
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+  # macOS AppleDouble stubs. On a volume that cannot store extended attributes
+  # inline — the one this repository lives on — every file that carries metadata
+  # grows a 4 KB binary sibling named `._<name>`. CI checks out clean and never
+  # sees them, so this exclusion looks like dead weight from a GitHub runner and
+  # is the difference between a 40 MB asar and one carrying hundreds of stub
+  # files on the machine that actually cuts releases. The same exclusion is
+  # repeated per-platform under `extraResources` below, because it does not
+  # reach there.
+  - "!**/._*"
+asar: true
+# Refuses to package an app whose `Resources/bin` is empty, short a binary, or
+# built for the wrong CPU. This is not belt-and-braces: electron-builder only
+# WARNS when an `extraResources` source directory is missing, so a forgotten
+# `fetch-binaries.mjs --target darwin-x64` otherwise produces a perfectly
+# well-formed Intel dmg with no engines inside it. Nothing downstream catches
+# that either — `enginesReady()` in electron/binaries-runtime.ts answers "is the
+# file there", and a wrong-architecture Mach-O answers yes. The first honest
+# signal without this gate is `posix_spawn` returning EBADARCH on a user's
+# machine, halfway through their first transcription.
+#
+# afterPack and not beforeBuild, because the thing worth checking is what ended
+# up in the .app, not what was sitting in vendor/ when the build started.
+afterPack: ./scripts/verify-packaged-binaries.mjs
+# The same file that becomes the body of the GitHub release (see
+# .github/workflows/release.yml). electron-builder embeds its contents into the
+# generated latest*.yml, which nothing consumes today — auto-update is not wired,
+# on purpose, because shipping an unsigned update channel is worse than shipping
+# no update channel. Kept anyway: it costs one line, and it is the piece that
+# would otherwise be forgotten on the day `electron-updater` is finally pointed
+# at a feed.
+releaseInfo:
+  releaseNotesFile: RELEASE_NOTES.md
+
+# No `icon:` key on either platform, and none is missing. `build/` is
+# electron-builder's default `buildResources` directory, and it finds
+# `build/icon.icns` for mac and `build/icon.ico` for win there by convention.
+# Those two are generated from `build/icon.svg` by `build/generate-icons.sh`
+# and committed; naming them here would add a second place that has to agree
+# with build/README.md about where they live. Nothing in the app reads an icon
+# at run time, so none of them needs an `extraResources` entry either.
+mac:
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  # The child processes — the Electron helpers, and by extension anything they
+  # spawn — inherit their own entitlement set, and it is a DIFFERENT file by
+  # default. Pointing both at the same list is what makes the JIT entitlements
+  # actually reach the renderer helper, which is the process that needs them.
+  entitlementsInherit: build/entitlements.mac.plist
+  # There is no Apple Developer ID behind this project yet, so there is nothing
+  # to notarize with and a `true` here would fail every build with an
+  # authentication error rather than producing an unsigned app.
+  #
+  # The consequence is documented in RELEASE_NOTES.md and docs/releasing.md and
+  # must stay there: an unsigned, un-notarized app downloaded through a browser
+  # carries com.apple.quarantine, and Gatekeeper refuses to open it on a
+  # double-click. The user's way through is right-click → Open → confirm, once
+  # (and on recent macOS versions, System Settings → Privacy & Security → Open
+  # Anyway). Signing and notarization switch on together the day certificates
+  # exist: set this to true and hand the workflow CSC_LINK, CSC_KEY_PASSWORD and
+  # the App Store Connect API key.
+  #
+  # `hardenedRuntime` and the entitlements above are NOT dormant config waiting
+  # for that day. They are applied by whatever signs the app — the ad-hoc
+  # signature macOS requires of arm64 binaries, or a Developer ID sitting in the
+  # keychain of whoever runs `npm run pack` locally.
+  notarize: false
+  extraResources:
+    # ${arch} is the TARGET architecture, never the build host: one dmg gets the
+    # Intel binaries and the other the Apple-silicon ones, from a single
+    # checkout on a single arm64 runner. `${platform}` would expand to the host
+    # and is the wrong macro every time.
+    #
+    # This directory is also where the fetch script writes THIRD-PARTY-NOTICES.md
+    # and the licence texts that have to travel with the executables, so copying
+    # the directory wholesale is what satisfies the notices too —
+    # `licenseNoticePath()` in electron/binaries-runtime.ts looks for it at
+    # `Resources/bin/THIRD-PARTY-NOTICES.md`.
+    - from: vendor/bin/darwin-${arch}
+      to: bin
+      # An `extraResources` entry with NO filter becomes `**/*` with zero
+      # exclusions — the top-level `files:` exclusion of `._*` does not reach
+      # here. A `._whisper-cli` sitting next to the Mach-O it shadows makes
+      # codesign refuse the whole bundle, and it only ever appears on the
+      # author's machine, so CI cannot warn about it.
+      filter:
+        - "!**/._*"
+  # No `arch:` here on purpose, so a bare `npm run pack` builds only the host
+  # architecture — the one whose binaries `postinstall` actually fetched. The
+  # release workflow asks for both explicitly (`--mac --arm64 --x64`) right
+  # after fetching both. Declaring both here instead would make the ordinary
+  # local smoke build fail in the afterPack gate on a `vendor/bin/darwin-x64`
+  # nobody asked for.
+  target:
+    - dmg
+    - zip
+win:
+  extraResources:
+    - from: vendor/bin/win32-${arch}
+      to: bin
+      # Same AppleDouble guard, and it is not copy-paste: the Windows installer
+      # can be built from the Mac, so the stubs are created on the machine that
+      # packs it even though no Windows box would ever make one.
+      filter:
+        - "!**/._*"
+  target:
+    # x64 spelled out rather than left to default, because it is the only
+    # Windows row `vendor/binaries.json` has. On an arm64 Windows host the
+    # default would be arm64, the extraResources source would silently not
+    # exist, and the installer would ship with no engines at all.
+    - target: nsis
+      arch:
+        - x64
+
+# There is deliberately no `linux:` block and no `publish:` block.
+#
+# Linux: `vendor/binaries.json` has no linux row, so declaring a target would
+# make `electron-builder --linux` a runnable command that produces an AppImage
+# with no ffmpeg and no engines in it — a missing extraResources source only
+# warns. Adding Linux means adding its manifest entries and someone who runs the
+# app there, not a `target:` key.
+#
+# Publish: `electron-updater` is a dependency and is not wired to a feed. The
+# release workflow passes `--publish never` and attaches the installers to a
+# GitHub release by hand, which is the honest arrangement while the builds are
+# unsigned.

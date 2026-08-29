@@ -210,7 +210,22 @@ human-readable segment lines rather than a structured document.
 
 ### 4.3 ffmpeg as a vendored subprocess, not a linked library and not the user's
 
-**Chosen: a purpose-built LGPL `ffmpeg` and `ffprobe`, vendored per platform,
+> **Superseded during implementation, 2026-08-29.** What actually ships is the
+> owner's existing public **GPL-3.0-or-later** builds
+> (github.com/markdudov/silencetrimmer-media-binaries, `--enable-gpl
+> --enable-version3`), pinned by SHA-256 in `vendor/binaries.json` for both
+> macOS architectures, with BtbN's static build on Windows. They already exist,
+> are already public, and already satisfy the GPLv3 source offer through that
+> repository — so the audio-only LGPL build below buys a smaller download and
+> simpler compliance at the cost of a build pipeline nobody has run yet. It
+> remains the right eventual answer and is tracked as future work; every
+> licence statement in the app, the READMEs and `THIRD-PARTY-LICENSES.md` says
+> GPL-3.0-or-later, which is what the shipped bytes are.
+>
+> The aggregation is arm's length: DropScribe spawns ffmpeg as a separate
+> process and links nothing from it, and its own source is MIT and public.
+
+**Originally chosen: a purpose-built LGPL `ffmpeg` and `ffprobe`, vendored per platform,
 invoked over argv and pipes.**
 
 Three alternatives, all rejected:

@@ -69,7 +69,7 @@ you have a deadline.
   argument or command injection via a crafted filename.
 - Anything that sends audio, transcripts or metadata somewhere the user did not
   choose — including a local-only transcription making any network request at all.
-- Tampering with the auto-update channel: unsigned or substituted updates,
+- Tampering with a release artifact: substituted or modified installers,
   downgrade attacks, an unverified download.
 - A vulnerable dependency that is genuinely reachable in the shipped app. Say how
   it is reached; an advisory ID alone against a dev-only package is not a finding.
@@ -161,9 +161,8 @@ When the target is a local model, no part of the pipeline makes a network
 request. ffmpeg extracts audio to a temporary WAV, the engine binary runs on your
 machine, and the temporary file is deleted when the job ends. No telemetry, no
 analytics, no crash reporting, no "anonymous usage statistics". The app makes
-network requests in exactly three situations, all of which you initiate: you
-download a model, you use a cloud provider, or the updater checks for a new
-release.
+network requests in exactly two situations, both of which you initiate: you
+download a model, or you transcribe with a cloud provider.
 
 ### A cloud provider receives the audio and nothing else
 

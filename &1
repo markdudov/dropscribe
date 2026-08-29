@@ -1,0 +1,8 @@
+
+1 problem:
+
+  ✗  parakeet-cli: now advertises --language, -l — this is GOOD NEWS, not a regression.
+      electron/engines/parakeet-cpp.ts currently ignores LocalRunRequest.language because no such
+      flag existed. Pass it through, let the UI offer a language for this engine, update
+      docs/engines/verification.md item 5, then remove this assertion.
+

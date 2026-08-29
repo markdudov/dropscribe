@@ -194,6 +194,11 @@ function cuesFor(transcript: Transcript, options: RenderOptions): Cue[] {
   return resegment(transcript.segments, {
     ...options.segmentation,
     includeSpeakers: options.includeSpeakers,
+    // The transcript knows where the media ends; the segmentation preferences
+    // do not. Passing it here is what stops the reading-speed floor from
+    // extending the final cue past the end of the file — see `mediaDurationMs`
+    // in `subtitles.ts` for the failure that motivated it.
+    ...(transcript.durationMs > 0 ? { mediaDurationMs: transcript.durationMs } : {}),
   });
 }
 

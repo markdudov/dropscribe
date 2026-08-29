@@ -1,6 +1,6 @@
-/// <reference types="vitest" />
 import { resolve } from 'node:path';
-import { defineConfig } from 'vite';
+// From `vitest/config`, not `vite` — only this one knows about the `test` key.
+import { defineConfig } from 'vitest/config';
 
 // Vitest only. The real app build lives in electron.vite.config.ts.
 export default defineConfig({

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the hardened runtime, applied to the app and, via
+  `entitlementsInherit` in electron-builder.yml, to every helper process.
+
+  Four entries, and no more. This file replaces electron-builder's built-in
+  default wholesale, so anything not listed here is not granted; the temptation
+  when a signed build misbehaves is to paste in another entitlement from a blog
+  post and see if the symptom goes away. Each of these has a reason written next
+  to it. An entitlement that cannot be given one belongs out of this file, not in
+  it with a shrug: every entry widens what a compromised renderer is allowed to
+  do, and `allow-dyld-environment-variables` and `cs.debugger` in particular are
+  routinely copied into Electron apps that have no use for either.
+-->
+<plist version="1.0">
+<dict>
+  <!--
+    V8 compiles JavaScript to machine code and needs pages that are both
+    writable and executable to do it. The hardened runtime forbids that by
+    default, and the failure is not subtle: the renderer process dies at
+    startup, before anything renders.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <!--
+    The wider version of the same permission, and not redundant with it.
+    `allow-jit` covers memory mapped through the MAP_JIT flag; parts of V8 and
+    of Chromium's own allocator map executable memory without it, and under a
+    hardened runtime those allocations fail. Apple documents this pair together
+    for exactly this class of app, and Electron does not work with only the
+    first half.
+  -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!--
+    The one this app genuinely stands on.
+
+    DropScribe ships four executables it did not build: `ffmpeg`, `ffprobe`,
+    `whisper-cli` and `parakeet-cli`, fetched by `scripts/fetch-binaries.mjs`
+    into `Resources/bin` and spawned from the main process. They come from other
+    people's toolchains and carry nobody's Developer ID, least of all this
+    project's, which does not have one. That is precisely the situation library
+    validation exists to refuse: code living inside a hardened bundle that is not
+    signed by the bundle's own team.
+
+    Without this entitlement they do not run, and "do not run" means every
+    transcription fails at the moment audio extraction starts, on a machine
+    where the app launched and looked completely healthy. `enginesReady()`
+    reports them present, because they are present.
+
+    This will look like the removable line in this file to someone hardening the
+    build later. It is the load-bearing one.
+  -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!--
+    Outbound network: model weights are downloaded from Hugging Face on first
+    use, and the cloud path uploads audio to DeepInfra, Deepgram, ElevenLabs or
+    OpenRouter with the user's own key.
+
+    Worth being straight about what this does today, because it is not what the
+    other three do: this is an App Sandbox entitlement, and DropScribe is not
+    sandboxed. A hardened runtime does not restrict outbound connections, so
+    nothing here is currently gated by it. It is declared because it is the
+    accurate statement of what the app reaches for, and because the sandbox is
+    the one configuration in which its absence is enforced by turning every
+    model download and every cloud job into a connection that simply never
+    opens. Deleting it changes no behaviour now; adding it back later, after a
+    day of debugging silent failures, is the alternative.
+  -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

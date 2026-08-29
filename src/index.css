@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+    `color-scheme` is not decoration. It is what makes the native form controls,
+    the scrollbar gutters and — crucially on macOS — the window's own background
+    flip with the app. Without it a dark DropScribe shows a white flash on every
+    resize, because the compositor paints the window's backing colour before
+    React has painted anything at all.
+
+    It is declared alongside the `dark` class rather than from
+    `prefers-color-scheme`, because the user can override the system theme in
+    settings and the two must never disagree.
+  */
+  :root {
+    color-scheme: light;
+  }
+
+  :root.dark {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-white font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+
+    /*
+      A desktop chrome is not a document. Dragging across a job row to select
+      the words "Transcribing 42%" is never what anyone meant to do, and on
+      macOS it fights the window-drag gesture in the header. Selection is
+      switched off globally and switched back on, by `.selectable`, for the
+      handful of places where copying the text is the point: a file path, an
+      error detail, a transcript.
+    */
+    -webkit-user-select: none;
+    user-select: none;
+
+    /* The shell owns its own scrolling; the body itself must never scroll. */
+    overflow: hidden;
+  }
+
+  .selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /*
+    One focus ring, defined once, for every focusable thing.
+
+    Per-component rings drift: someone adds a button, forgets the classes, and
+    the app has a control that keyboard users cannot see. `:focus-visible` also
+    means the ring appears for the keyboard and stays out of the way of the
+    mouse, which is why the rule is not on `:focus`.
+  */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-white dark:ring-offset-slate-950;
+  }
+
+  ::selection {
+    @apply bg-brand/25;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-2 border-solid border-transparent bg-slate-300 bg-clip-padding dark:bg-slate-700;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-600;
+  }
+}
+
+@layer components {
+  /*
+    Window dragging.
+
+    Which of these matters depends on how main built the BrowserWindow, and this
+    file cannot know that. With a frameless or `hiddenInset` title bar the header
+    is the *only* way to move the window, so the region is mandatory; with an
+    ordinary frame it is a harmless bonus that behaves the way a macOS toolbar
+    does anyway. `.no-drag` is not optional either way — a button inside a drag
+    region stops receiving clicks.
+  */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /*
+    The bar for a stage that cannot report a fraction — an upload whose server
+    sends no length, a Parakeet run that prints nothing until it prints
+    everything. A bar frozen at 0% reads as "hung"; a bar sliding back and forth
+    reads as "working, and I do not know for how long", which is the truth.
+  */
+  .bar-indeterminate {
+    width: 35%;
+    animation: dropscribe-sweep 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes dropscribe-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+/*
+  Motion is a nicety; vestibular disorders are not. Everything animated here is
+  a progress hint, so removing the animation costs nothing but the sweep.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .bar-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

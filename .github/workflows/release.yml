@@ -1,0 +1,243 @@
+name: Release
+
+# Pushing a `v*.*.*` tag is the only thing that ships a build:
+#
+#   npm version 0.1.1 && git push --follow-tags
+#
+# `workflow_dispatch` runs the same two build jobs without publishing anything,
+# which is how the pipeline gets exercised without creating a tag that then has
+# to be deleted. Deleted tags are worse than they sound once anyone has fetched
+# one. The full procedure, and what to do when a leg fails, is docs/releasing.md.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Builds BOTH Mac architectures from one checkout on one arm64 runner.
+  macos:
+    name: macOS (arm64 + x64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Not `--ignore-scripts` here, unlike ci.yml: this is the job that needs
+      # the binaries, and `postinstall` fetching the host target is half of what
+      # is required. It also downloads the Electron runtime, without which
+      # electron-builder has nothing to package.
+      - name: Install dependencies
+        run: npm ci
+
+      # The step whose absence ships an arm64 ffmpeg inside the Intel dmg.
+      #
+      # `fetch-binaries.mjs` with no argument fetches for the HOST, which is
+      # right for `postinstall` and wrong here: this runner is arm64 and it
+      # builds the Intel dmg too, from the same checkout. Without
+      # `vendor/bin/darwin-x64/`, electron-builder's extraResources source is
+      # simply missing — which it only WARNS about — and the Intel build ships
+      # either no engines or, depending on how the glob resolves, the arm64 ones
+      # under an x64 label.
+      #
+      # Nothing downstream catches it. `enginesReady()` answers "is the file
+      # there", not "will this file execute on this CPU", and a wrong-arch
+      # Mach-O answers yes to the first question. The first honest signal is
+      # `posix_spawn` returning EBADARCH on an Intel Mac, at the end of the
+      # audio-extraction stage of a user's first job. Naming both targets is
+      # idempotent: the arm64 half is already on disk from `postinstall` and is
+      # skipped by hash.
+      - name: Fetch media binaries for both macOS architectures
+        run: node scripts/fetch-binaries.mjs --target darwin-arm64 --target darwin-x64
+
+      - name: Build renderer + main
+        run: npm run build
+
+      # Unsigned, and `--publish never`.
+      #
+      # There is no Developer ID and no App Store Connect key behind this
+      # project, so `mac.notarize` is false in electron-builder.yml and this
+      # step produces an app Gatekeeper will refuse on a double-click. That is a
+      # funding position, not an oversight, and the release body says so in
+      # plain words. The day certificates exist, this step gains CSC_LINK,
+      # CSC_KEY_PASSWORD and the APPLE_API_* trio as `env:` and nothing else
+      # here changes.
+      #
+      # `--publish never` because `electron-updater` is a dependency that is
+      # deliberately not wired to a feed: an unsigned auto-update channel is
+      # worse than none. The installers are attached to a GitHub release by the
+      # publish job instead.
+      #
+      # `--arm64 --x64` on the command line rather than in electron-builder.yml,
+      # so that a local `npm run pack` still builds only the host architecture
+      # with the binaries `postinstall` actually fetched. The pairing that
+      # matters is that this line and the fetch above name the same two.
+      #
+      # The `afterPack` hook (scripts/verify-packaged-binaries.mjs) runs inside
+      # this command, once per produced app, and reads the Mach-O header of
+      # every binary in the packaged `Resources/bin`. There is deliberately no
+      # separate verification step: a gate that can be skipped by removing a
+      # workflow step is not a gate.
+      - name: Package (unsigned)
+        run: npx electron-builder --mac --arm64 --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-macos
+          path: |
+            release/*.dmg
+            release/*.zip
+          # A silently empty artifact would reach the publish job and produce a
+          # GitHub release with no installers attached to it, which is strictly
+          # worse than a failed build: the tag would look shipped.
+          if-no-files-found: error
+
+  windows:
+    name: Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Idempotent after `postinstall`, which already fetched this exact target
+      # on this host. Written out anyway, so that both build jobs state the
+      # binaries they need instead of one of them relying on a lifecycle script
+      # that a future `--ignore-scripts` would quietly remove.
+      #
+      # There is one Windows architecture, so there is no second fetch here and
+      # none of the ways the Mac job can go wrong.
+      - name: Fetch media binaries
+        run: node scripts/fetch-binaries.mjs --target win32-x64
+
+      - name: Build renderer + main
+        run: npm run build
+
+      # Unsigned as well: Authenticode certificates cost money this project does
+      # not spend yet. SmartScreen will show the blue "Windows protected your
+      # PC" panel with no publisher name, and reputation accrues per binary, so
+      # this does not improve as the project ages — every release starts from
+      # zero. The release body tells users about More info → Run anyway.
+      - name: Package (unsigned)
+        run: npx electron-builder --win --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-windows
+          path: release/*.exe
+          if-no-files-found: error
+
+  # Only for a real tag. A `workflow_dispatch` run stops after the two build
+  # jobs with the installers attached to the run as artifacts — a complete dry
+  # run of everything except the irreversible part.
+  publish:
+    name: GitHub release
+    needs:
+      - macos
+      - windows
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # The one job that writes. The build jobs stay read-only.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # RELEASE_NOTES.md is the release body verbatim, and the paragraphs about
+      # the missing signature are the most important thing on the page: they are
+      # what a user reads after macOS refuses to open the app. Rewriting this
+      # file for a new version is a manual step in docs/releasing.md, and manual
+      # steps get skipped — so the workflow refuses to publish notes that have
+      # lost the warning rather than shipping a release whose only explanation
+      # of the Gatekeeper dialog is a GitHub issue somebody files.
+      #
+      # It runs here, in the job that consumes the file, rather than as a fast
+      # pre-flight: this is the only place the check can be a precondition of
+      # the thing it protects.
+      - name: Refuse to publish release notes without the unsigned-build warning
+        run: |
+          set -euo pipefail
+          missing=0
+          for phrase in 'not signed' 'Open Anyway' 'Run anyway' 'SmartScreen'; do
+            if ! grep -qF "$phrase" RELEASE_NOTES.md; then
+              echo "::error::RELEASE_NOTES.md no longer mentions '$phrase'"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo 'These builds are unsigned. The release body has to say so, and has to tell'
+            echo 'macOS users about right-click → Open / System Settings → Privacy & Security →'
+            echo 'Open Anyway, and Windows users about SmartScreen → More info → Run anyway.'
+            echo 'docs/releasing.md carries the wording to paste back.'
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          # Both jobs' files land in one flat directory, which is the shape the
+          # checksum step and the release upload both want.
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          # `nullglob` so a pattern that matches nothing disappears instead of
+          # being passed to sha256sum as a literal `*.exe`.
+          shopt -s nullglob
+          files=(*.dmg *.zip *.exe)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo '::error::no installers were downloaded from the build jobs'
+            exit 1
+          fi
+          # A published checksum from the same pipeline that built the file
+          # proves nothing about the builder. It is still worth publishing: it
+          # is what lets somebody who builds from the tag themselves check that
+          # what they produced matches what was uploaded, which is the only
+          # verification story an unsigned project honestly has.
+          sha256sum "${files[@]}" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Is this a pre-release?
+        id: kind
+        run: |
+          set -euo pipefail
+          # `v0.2.0-rc.1` has a suffix, `v0.2.0` does not. A pre-release tag
+          # produces a DRAFT: nothing is downloadable, and nothing is announced,
+          # until a maintainer has installed it on both platforms and pressed
+          # publish by hand.
+          case "$GITHUB_REF_NAME" in
+            *-*) echo 'prerelease=true' >> "$GITHUB_OUTPUT" ;;
+            *)   echo 'prerelease=false' >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          # The tag already exists — it is what triggered this run — so nothing
+          # here creates one.
+          tag_name: ${{ github.ref_name }}
+          name: DropScribe ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/SHA256SUMS
+          draft: ${{ steps.kind.outputs.prerelease == 'true' }}
+          prerelease: ${{ steps.kind.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true

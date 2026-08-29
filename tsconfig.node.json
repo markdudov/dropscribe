@@ -10,6 +10,9 @@
   ],
   "compilerOptions": {
     "composite": true,
+    // The @electron-toolkit base still sets node10, deprecated in TS 6.
+    "moduleResolution": "bundler",
+    "module": "esnext",
     // Without this, tsc writes compiled electron/*.js next to the sources and
     // Vite resolves .js before .ts — every main-process edit then silently does
     // nothing while the stale file loads instead.
@@ -18,7 +21,6 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": { "@shared/*": ["electron/shared/*"] }
+    "paths": { "@shared/*": ["./electron/shared/*"] }
   }
 }

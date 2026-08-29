@@ -110,6 +110,19 @@ export interface DropScribeApi {
    * Synchronous on purpose: the drop handler must decide within the event.
    */
   authorizePath(path: string): boolean;
+  /**
+   * The real path behind a `File` that arrived from a drop or a file input.
+   *
+   * Electron 32 removed the `File.path` augmentation, so in a sandboxed
+   * renderer a dropped file carries no path at all and `webUtils` — which
+   * exists only in the preload — is the only way back to one. Synchronous and
+   * not IPC, because it reads a value Chromium already attached to the object
+   * and the drop handler needs it before the DataTransfer is neutered.
+   *
+   * A `File` built in JavaScript returns `''`, which `authorizePath` then
+   * refuses like any other path that is not a readable media file.
+   */
+  pathForFile(file: File): string;
   chooseOutputDir(): Promise<string | null>;
   revealFile(path: string): Promise<void>;
 
