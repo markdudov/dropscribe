@@ -9,7 +9,7 @@
  * anything, and why the reset button is safe to press.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FolderOpen, RotateCcw } from 'lucide-react';
 
 import type { ExportFormat } from '../../../electron/api-types';
@@ -124,7 +124,16 @@ function NumberField({
   suffix?: string; onCommit: (next: number) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState(String(value));
-  useEffect(() => { setDraft(String(value)); }, [value]);
+  /*
+   * Adjusting during render rather than in an effect: a clamp that comes back
+   * from main changes `value`, and the field has to follow it. An effect would
+   * paint the stale draft first and correct it on the next frame.
+   */
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    setDraft(String(value));
+  }
 
   function commit(): void {
     const parsed = Number.parseInt(draft, 10);

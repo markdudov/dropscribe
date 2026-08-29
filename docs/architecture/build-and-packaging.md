@@ -350,3 +350,33 @@ The run-time selection stays either way. It is what makes the rebuild a pure
 improvement with no code change on this side, and it is what keeps the next
 divergence between these two builds from being a bug report instead of a
 slightly larger upload.
+
+## The lint gate, and why eslint 10 landed as one commit
+
+`npm run lint` is `eslint . --max-warnings=0`. There is no warning tier: a rule
+is either worth failing CI over or it is not enabled.
+
+The eslint 9 → 10 upgrade could not be taken as the three separate Dependabot
+pull requests it arrived as. `eslint@10` alone leaves `eslint-plugin-react-hooks@5`
+declaring a peer range that stops at `^9.0.0`, so `npm ci` fails on `ERESOLVE`
+before a single file is linted; `eslint-plugin-react-hooks@7` alone is a plugin
+built for a linter the project does not have yet. They are one upgrade wearing
+three hats, and CI was red on each of them for the same reason. `eslint`,
+`@eslint/js` and `eslint-plugin-react-hooks` move together.
+
+The upgrade was not free, which is the point of it. Three rules that are new to
+the recommended sets found ten real things:
+
+- **`preserve-caught-error`** — a `catch (cause)` that throws a friendlier error
+  and drops the original. Every one of those is a stack trace that stopped at the
+  message we wrote instead of reaching the syscall that failed. They now pass
+  `{ cause }`. In `whisper-cpp.ts` the site was already passing a `cause`, just
+  the wrong one: the stderr tail rather than the caught error. The tail moved
+  into the message, where it is read anyway, and the real cause is attached.
+- **`no-useless-assignment`** — initialisers that no path ever reads, because
+  both the `try` and the `catch` assign before the value is used.
+- **`react-hooks/set-state-in-effect`** — see
+  [state-and-store.md](state-and-store.md#state-that-follows-a-prop-is-adjusted-during-render).
+
+`@electron-toolkit/tsconfig@2` and `@types/node@26` are majors that went in on
+their own; both typecheck clean against the two projects above.

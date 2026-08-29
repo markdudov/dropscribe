@@ -158,7 +158,7 @@ interface DeepgramError {
  * caller might want rather than being called twice for different pieces.
  */
 async function readDeepgramError(response: Response): Promise<DeepgramError> {
-  let raw = '';
+  let raw: string;
   try {
     raw = await response.text();
   } catch {
@@ -904,7 +904,7 @@ async function testKey(apiKey: string, signal: AbortSignal): Promise<KeyTestResu
   // The model list is public and cheap, so fetching it here means the model
   // picker is populated the instant the key checks out — one visible step
   // instead of two. A failure is not worth failing the test over.
-  let models: ProviderModel[] = [];
+  let models: ProviderModel[];
   try {
     models = await listModels(apiKey, signal);
   } catch (error) {

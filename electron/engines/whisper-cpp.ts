@@ -219,7 +219,10 @@ async function run(request: LocalRunRequest, ctx: LocalRunContext): Promise<Tran
     try {
       raw = await readFile(jsonPath, 'utf8');
     } catch (cause) {
-      throw new Error('Whisper finished but wrote no transcript file.', { cause: tail || cause });
+      throw new Error(
+        `Whisper finished but wrote no transcript file.${tail === '' ? '' : `\n${tail}`}`,
+        { cause },
+      );
     }
 
     let parsed: unknown;
