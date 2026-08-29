@@ -96,8 +96,15 @@ export function SettingsModal({ open: openProp, tab: tabProp, onTabChange, onClo
   }
 
   return (
+    /*
+      The backdrop dims and blurs the window rather than blanking it. A flat
+      opaque scrim turns the app behind into a grey rectangle and the modal
+      stops reading as *above* something; a 60% ink wash plus a small blur keeps
+      the queue legible as depth, which is the whole reason settings is a modal
+      and not a second window.
+    */
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm dark:bg-ink-950/60"
       // The backdrop closes on click, but only when the click started AND ended
       // on it. Without the target check, a drag that begins inside a text field
       // and releases over the backdrop dismisses the panel and loses the edit.
@@ -109,62 +116,80 @@ export function SettingsModal({ open: openProp, tab: tabProp, onTabChange, onClo
         aria-modal="true"
         aria-labelledby="settings-title"
         tabIndex={-1}
-        className="flex h-[min(88vh,44rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl focus:outline-none dark:bg-slate-950"
+        className="flex h-[min(88vh,44rem)] w-full max-w-3xl animate-fade-up flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-modal focus:outline-none dark:border-white/[0.07] dark:bg-ink-900"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
-          <h2 id="settings-title" className="text-base font-semibold text-slate-900 dark:text-slate-100">Settings</h2>
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3.5 dark:border-white/[0.06]">
+          <h2 id="settings-title" className="text-base font-semibold tracking-[-0.01em] text-slate-900 dark:text-white">Settings</h2>
           <button
             type="button"
             onClick={close}
             aria-label="Close settings"
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            className="btn-icon"
           >
             <X aria-hidden className="h-4 w-4" />
           </button>
         </header>
 
-        <div
-          ref={tabsRef}
-          role="tablist"
-          aria-label="Settings sections"
-          onKeyDown={onTabKeyDown}
-          className="flex gap-1 border-b border-slate-200 px-3 py-2 dark:border-slate-800"
-        >
-          {SETTINGS_TABS.map((id) => {
-            const meta = TAB_META[id];
-            const selected = id === tab;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                id={`settings-tab-${id}`}
-                aria-selected={selected}
-                aria-controls={`settings-panel-${id}`}
-                // Roving tabindex: one Tab press reaches the tab strip, arrows
-                // move within it. Every tab being tabbable would put four stops
-                // between the close button and the panel's first field.
-                tabIndex={selected ? 0 : -1}
-                onClick={() => { selectTab(id); }}
-                className={
-                  'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/50 ' +
-                  (selected
-                    ? 'bg-brand-subtle text-brand'
-                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')
-                }
-              >
-                <meta.Icon aria-hidden className="h-4 w-4" />
-                {meta.label}
-              </button>
-            );
-          })}
+        {/*
+          A segmented control, not an underline.
+
+          Four sections that swap the whole body are a mode switch, and a mode
+          switch reads best as one physical object with one raised cell: the
+          track says "these four are the same kind of thing", the lifted pill
+          says "you are in this one". An underline row would have to draw a
+          second horizontal rule directly under the header's, which is two lines
+          of chrome saying the same thing.
+        */}
+        <div className="shrink-0 border-b border-slate-200 px-5 py-3 dark:border-white/[0.06]">
+          <div
+            ref={tabsRef}
+            role="tablist"
+            aria-label="Settings sections"
+            onKeyDown={onTabKeyDown}
+            className="inline-flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/[0.04]"
+          >
+            {SETTINGS_TABS.map((id) => {
+              const meta = TAB_META[id];
+              const selected = id === tab;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${id}`}
+                  aria-selected={selected}
+                  aria-controls={`settings-panel-${id}`}
+                  // Roving tabindex: one Tab press reaches the tab strip, arrows
+                  // move within it. Every tab being tabbable would put four stops
+                  // between the close button and the panel's first field.
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => { selectTab(id); }}
+                  className={
+                    'inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium transition duration-150 ease-crisp ' +
+                    (selected
+                      ? 'bg-white text-slate-900 shadow-panel dark:bg-ink-750 dark:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200')
+                  }
+                >
+                  <meta.Icon aria-hidden className="h-4 w-4" />
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
+        {/*
+          The body is the only thing that scrolls. `min-h-0` is what makes that
+          true: without it a flex child refuses to shrink below its content, the
+          panel grows past its own `h-[min(88vh,44rem)]`, and the header and tab
+          strip scroll away with the content they are supposed to stay above.
+        */}
         <div
           role="tabpanel"
           id={`settings-panel-${tab}`}
           aria-labelledby={`settings-tab-${tab}`}
-          className="flex-1 overflow-y-auto px-5 py-4"
+          className="min-h-0 flex-1 overflow-y-auto px-5 py-5"
         >
           {tab === 'models' ? <ModelsTab /> : null}
           {tab === 'providers' ? <ProvidersTab /> : null}

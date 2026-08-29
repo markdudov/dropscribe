@@ -19,17 +19,14 @@ import type { SegmentationOptions } from '../../../electron/shared/subtitles';
 import { DEFAULT_SEGMENTATION } from '../../../electron/shared/subtitles';
 import { useStore } from '../store';
 
-const BUTTON =
-  'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-  'focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-50';
-const QUIET =
-  `${BUTTON} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 ` +
-  'dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
+const GHOST = 'btn-ghost inline-flex items-center gap-2';
 
+/* The one field treatment, shared with the key field on the providers tab. The
+   focus ring comes from `index.css` and is not restated here. */
 const FIELD =
-  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 ' +
-  'focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 ' +
-  'dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100';
+  'rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 ' +
+  'transition duration-150 ease-crisp focus:border-brand ' +
+  'dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100';
 
 const FORMAT_LABELS: Readonly<Record<ExportFormat, string>> = {
   txt: 'Plain text',
@@ -42,13 +39,46 @@ const FORMAT_LABELS: Readonly<Record<ExportFormat, string>> = {
 
 function Section({ title, helper, children }: { title: string; helper?: string; children: React.ReactNode }): JSX.Element {
   return (
-    <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+    <section className="surface p-4">
+      <h3 className="text-sm font-semibold tracking-[-0.01em] text-slate-900 dark:text-slate-100">{title}</h3>
       {helper !== undefined ? (
-        <p className="mt-1 max-w-prose text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+        <p className="mt-1 max-w-prose text-[0.8125rem] leading-relaxed text-slate-500 dark:text-slate-400">{helper}</p>
       ) : null}
       <div className="mt-3 space-y-3">{children}</div>
     </section>
+  );
+}
+
+/**
+ * A format is a chip, not a line in a checklist.
+ *
+ * Six stacked checkbox rows read as six decisions to make in order; six chips
+ * on one wrapped row read as one decision — which of these do I want — and the
+ * checked ones are legible as a set from across the window, which is what the
+ * user is actually asking when they open this card.
+ */
+function FormatChip({ id, label, checked, onChange }: {
+  id: string; label: string; checked: boolean; onChange: (next: boolean) => void;
+}): JSX.Element {
+  return (
+    <label
+      htmlFor={id}
+      className={
+        'inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-[0.8125rem] font-medium transition duration-150 ease-crisp ' +
+        (checked
+          ? 'border-brand bg-brand-subtle text-brand'
+          : 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:border-white/20 dark:hover:bg-white/[0.06]')
+      }
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => { onChange(event.target.checked); }}
+        className="h-3.5 w-3.5 shrink-0 accent-brand"
+      />
+      {label}
+    </label>
   );
 }
 
@@ -65,13 +95,13 @@ function Toggle({
         checked={checked}
         disabled={disabled === true}
         onChange={(event) => { onChange(event.target.checked); }}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-brand focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:opacity-50"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-brand disabled:opacity-50"
         {...(helper !== undefined ? { 'aria-describedby': `${id}-helper` } : {})}
       />
       <div className="min-w-0">
         <label htmlFor={id} className="text-sm font-medium text-slate-800 dark:text-slate-200">{label}</label>
         {helper !== undefined ? (
-          <p id={`${id}-helper`} className="text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+          <p id={`${id}-helper`} className="text-[0.75rem] text-slate-500 dark:text-slate-400">{helper}</p>
         ) : null}
       </div>
     </div>
@@ -109,7 +139,7 @@ function NumberField({
       <div className="min-w-0">
         <label htmlFor={id} className="text-sm font-medium text-slate-800 dark:text-slate-200">{label}</label>
         {helper !== undefined ? (
-          <p id={`${id}-helper`} className="max-w-prose text-xs text-slate-500 dark:text-slate-400">{helper}</p>
+          <p id={`${id}-helper`} className="max-w-prose text-[0.75rem] text-slate-500 dark:text-slate-400">{helper}</p>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -123,11 +153,11 @@ function NumberField({
           onChange={(event) => { setDraft(event.target.value); }}
           onBlur={commit}
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
-          className={`${FIELD} w-24 text-right`}
+          className={`${FIELD} tnum w-24 text-right`}
           {...(helper !== undefined ? { 'aria-describedby': `${id}-helper` } : {})}
         />
         {suffix !== undefined ? (
-          <span className="w-16 text-xs text-slate-500 dark:text-slate-400">{suffix}</span>
+          <span className="w-16 text-[0.75rem] text-slate-500 dark:text-slate-400">{suffix}</span>
         ) : null}
       </div>
     </div>
@@ -159,281 +189,285 @@ export function OutputTab(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Files and transcription</h2>
-        <p className="mt-1 max-w-prose text-sm text-slate-600 dark:text-slate-400">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-slate-900 dark:text-slate-100">
+          Files and transcription
+        </h2>
+        <p className="mt-1 max-w-prose text-[0.8125rem] leading-relaxed text-slate-600 dark:text-slate-400">
           What gets written when a job finishes, and how the words are turned into subtitles.
         </p>
       </div>
 
-      <Section
-        title="Written when a job finishes"
-        helper="Leave everything off to export by hand from the queue instead."
-      >
-        <div className="grid grid-cols-2 gap-2">
-          {EXPORT_FORMATS.map((format) => (
-            <Toggle
-              key={format}
-              id={`format-${format}`}
-              label={FORMAT_LABELS[format]}
-              checked={output.formats.includes(format)}
-              onChange={(on) => { toggleFormat(format, on); }}
-            />
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Where they go">
-        <fieldset className="space-y-3">
-          <legend className="sr-only">Where finished files are written</legend>
-          <div className="flex items-start gap-3">
-            <input
-              id="output-beside"
-              type="radio"
-              name="output-location"
-              checked={output.besideSource}
-              onChange={() => { void updateOutput({ besideSource: true }); }}
-              className="mt-0.5 h-4 w-4 accent-brand focus:outline-none focus:ring-2 focus:ring-brand/50"
-            />
-            <label htmlFor="output-beside" className="text-sm font-medium text-slate-800 dark:text-slate-200">
-              Beside the source file
-            </label>
+      <div className="space-y-3">
+        <Section
+          title="Written when a job finishes"
+          helper="Leave everything off to export by hand from the queue instead."
+        >
+          <div className="flex flex-wrap gap-2">
+            {EXPORT_FORMATS.map((format) => (
+              <FormatChip
+                key={format}
+                id={`format-${format}`}
+                label={FORMAT_LABELS[format]}
+                checked={output.formats.includes(format)}
+                onChange={(on) => { toggleFormat(format, on); }}
+              />
+            ))}
           </div>
-          <div className="flex items-start gap-3">
-            <input
-              id="output-folder"
-              type="radio"
-              name="output-location"
-              checked={!output.besideSource}
-              onChange={() => { void updateOutput({ besideSource: false }); }}
-              className="mt-0.5 h-4 w-4 accent-brand focus:outline-none focus:ring-2 focus:ring-brand/50"
-            />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="output-folder" className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                All into one folder
+        </Section>
+
+        <Section title="Where they go">
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Where finished files are written</legend>
+            <div className="flex items-start gap-3">
+              <input
+                id="output-beside"
+                type="radio"
+                name="output-location"
+                checked={output.besideSource}
+                onChange={() => { void updateOutput({ besideSource: true }); }}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <label htmlFor="output-beside" className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                Beside the source file
               </label>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">
-                  {output.outputDir ?? 'No folder chosen yet'}
-                </span>
-                <button type="button" className={QUIET} onClick={() => { void chooseOutputDir(); }}>
-                  <FolderOpen aria-hidden className="h-4 w-4" />
-                  Choose a folder…
-                </button>
+            </div>
+            <div className="flex items-start gap-3">
+              <input
+                id="output-folder"
+                type="radio"
+                name="output-location"
+                checked={!output.besideSource}
+                onChange={() => { void updateOutput({ besideSource: false }); }}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <div className="min-w-0 flex-1">
+                <label htmlFor="output-folder" className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  All into one folder
+                </label>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="selectable truncate font-mono text-[0.75rem] text-slate-500 dark:text-slate-400">
+                    {output.outputDir ?? 'No folder chosen yet'}
+                  </span>
+                  <button type="button" className={`${GHOST} shrink-0`} onClick={() => { void chooseOutputDir(); }}>
+                    <FolderOpen aria-hidden className="h-4 w-4" />
+                    Choose a folder…
+                  </button>
+                </div>
               </div>
             </div>
+          </fieldset>
+
+          <Toggle
+            id="output-speakers"
+            label="Put the speaker in front of each line"
+            helper="Does something only when the transcript has speakers in it."
+            checked={output.includeSpeakers}
+            onChange={(on) => { void updateOutput({ includeSpeakers: on }); }}
+          />
+        </Section>
+
+        <Section title="Transcription">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <label htmlFor="setting-language" className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                Spoken language
+              </label>
+              <p id="setting-language-helper" className="max-w-prose text-[0.75rem] text-slate-500 dark:text-slate-400">
+                Leave this on automatic unless the model keeps guessing wrong.
+              </p>
+            </div>
+            <select
+              id="setting-language"
+              aria-describedby="setting-language-helper"
+              className={`${FIELD} w-56 shrink-0`}
+              value={settings.language ?? ''}
+              onChange={(event) => {
+                // The empty string is the only value a `<select>` can carry for
+                // "no language", and `null` is what every layer below expects.
+                const raw = event.target.value;
+                void updateSettings({ language: raw === '' ? null : raw });
+              }}
+            >
+              <option value="">Detect automatically</option>
+              {languages.map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.name} — {language.nativeName}
+                </option>
+              ))}
+            </select>
           </div>
-        </fieldset>
 
-        <Toggle
-          id="output-speakers"
-          label="Put the speaker in front of each line"
-          helper="Does something only when the transcript has speakers in it."
-          checked={output.includeSpeakers}
-          onChange={(on) => { void updateOutput({ includeSpeakers: on }); }}
-        />
-      </Section>
+          <Toggle
+            id="setting-translate"
+            label="Translate to English"
+            helper="Whisper can translate while it transcribes. Parakeet cannot."
+            checked={settings.translate}
+            onChange={(on) => { void updateSettings({ translate: on }); }}
+          />
+          <Toggle
+            id="setting-diarize"
+            label="Identify the speakers"
+            helper="Cloud providers only — the local models do not separate speakers."
+            checked={settings.diarize}
+            onChange={(on) => { void updateSettings({ diarize: on }); }}
+          />
 
-      <Section title="Transcription">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <label htmlFor="setting-language" className="text-sm font-medium text-slate-800 dark:text-slate-200">
-              Spoken language
-            </label>
-            <p id="setting-language-helper" className="max-w-prose text-xs text-slate-500 dark:text-slate-400">
-              Leave this on automatic unless the model keeps guessing wrong.
-            </p>
+          <NumberField
+            id="setting-concurrency"
+            label="Files at once"
+            helper="Local inference is bound by memory, not by cores. More than one at a time rarely finishes sooner."
+            value={settings.maxConcurrentJobs}
+            min={1}
+            max={8}
+            suffix="files"
+            onCommit={(next) => { void updateSettings({ maxConcurrentJobs: next }); }}
+          />
+          <NumberField
+            id="setting-threads"
+            label="CPU threads"
+            helper="Zero lets the app choose from the core count."
+            value={settings.threads}
+            min={0}
+            max={128}
+            suffix={settings.threads === 0 ? 'automatic' : 'threads'}
+            onCommit={(next) => { void updateSettings({ threads: next }); }}
+          />
+        </Section>
+
+        <Section title="Appearance">
+          <div className="flex items-center justify-between gap-4">
+            <label htmlFor="setting-theme" className="text-sm font-medium text-slate-800 dark:text-slate-200">Theme</label>
+            <select
+              id="setting-theme"
+              className={`${FIELD} w-56 shrink-0`}
+              value={settings.theme}
+              onChange={(event) => {
+                const raw = event.target.value;
+                const theme: typeof settings.theme = raw === 'light' || raw === 'dark' ? raw : 'system';
+                void updateSettings({ theme });
+              }}
+            >
+              <option value="system">Match the system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
           </div>
-          <select
-            id="setting-language"
-            aria-describedby="setting-language-helper"
-            className={`${FIELD} w-56`}
-            value={settings.language ?? ''}
-            onChange={(event) => {
-              // The empty string is the only value a `<select>` can carry for
-              // "no language", and `null` is what every layer below expects.
-              const raw = event.target.value;
-              void updateSettings({ language: raw === '' ? null : raw });
-            }}
-          >
-            <option value="">Detect automatically</option>
-            {languages.map((language) => (
-              <option key={language.code} value={language.code}>
-                {language.name} — {language.nativeName}
-              </option>
-            ))}
-          </select>
-        </div>
 
-        <Toggle
-          id="setting-translate"
-          label="Translate to English"
-          helper="Whisper can translate while it transcribes. Parakeet cannot."
-          checked={settings.translate}
-          onChange={(on) => { void updateSettings({ translate: on }); }}
-        />
-        <Toggle
-          id="setting-diarize"
-          label="Identify the speakers"
-          helper="Cloud providers only — the local models do not separate speakers."
-          checked={settings.diarize}
-          onChange={(on) => { void updateSettings({ diarize: on }); }}
-        />
-
-        <NumberField
-          id="setting-concurrency"
-          label="Files at once"
-          helper="Local inference is bound by memory, not by cores. More than one at a time rarely finishes sooner."
-          value={settings.maxConcurrentJobs}
-          min={1}
-          max={8}
-          suffix="files"
-          onCommit={(next) => { void updateSettings({ maxConcurrentJobs: next }); }}
-        />
-        <NumberField
-          id="setting-threads"
-          label="CPU threads"
-          helper="Zero lets the app choose from the core count."
-          value={settings.threads}
-          min={0}
-          max={128}
-          suffix={settings.threads === 0 ? 'automatic' : 'threads'}
-          onCommit={(next) => { void updateSettings({ threads: next }); }}
-        />
-      </Section>
-
-      <Section title="Appearance">
-        <div className="flex items-center justify-between gap-4">
-          <label htmlFor="setting-theme" className="text-sm font-medium text-slate-800 dark:text-slate-200">Theme</label>
-          <select
-            id="setting-theme"
-            className={`${FIELD} w-56`}
-            value={settings.theme}
-            onChange={(event) => {
-              const raw = event.target.value;
-              const theme: typeof settings.theme = raw === 'light' || raw === 'dark' ? raw : 'system';
-              void updateSettings({ theme });
-            }}
-          >
-            <option value="system">Match the system</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <label htmlFor="setting-ui-language" className="text-sm font-medium text-slate-800 dark:text-slate-200">
-              Interface language
-            </label>
-            <p id="setting-ui-language-helper" className="text-xs text-slate-500 dark:text-slate-400">
-              This changes the app, not the transcription.
-            </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <label htmlFor="setting-ui-language" className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                Interface language
+              </label>
+              <p id="setting-ui-language-helper" className="text-[0.75rem] text-slate-500 dark:text-slate-400">
+                This changes the app, not the transcription.
+              </p>
+            </div>
+            <select
+              id="setting-ui-language"
+              aria-describedby="setting-ui-language-helper"
+              className={`${FIELD} w-56 shrink-0`}
+              value={settings.uiLanguage}
+              onChange={(event) => {
+                const uiLanguage: typeof settings.uiLanguage = event.target.value === 'bg' ? 'bg' : 'en';
+                void updateSettings({ uiLanguage });
+              }}
+            >
+              <option value="en">English</option>
+              <option value="bg">Български</option>
+            </select>
           </div>
-          <select
-            id="setting-ui-language"
-            aria-describedby="setting-ui-language-helper"
-            className={`${FIELD} w-56`}
-            value={settings.uiLanguage}
-            onChange={(event) => {
-              const uiLanguage: typeof settings.uiLanguage = event.target.value === 'bg' ? 'bg' : 'en';
-              void updateSettings({ uiLanguage });
-            }}
-          >
-            <option value="en">English</option>
-            <option value="bg">Български</option>
-          </select>
-        </div>
-      </Section>
+        </Section>
 
-      <Section
-        title="Subtitle shape"
-        helper="These rules turn a transcript into cues. The defaults are where the BBC and Netflix guidelines agree."
-      >
-        <NumberField
-          id="seg-chars-per-line"
-          label="Characters per line"
-          helper="42 is the width that stays safe inside a 16:9 frame."
-          value={seg.maxCharsPerLine}
-          min={10}
-          max={200}
-          suffix="characters"
-          onCommit={(next) => { void updateSegmentation({ maxCharsPerLine: next }); }}
-        />
-        <NumberField
-          id="seg-max-lines"
-          label="Lines per subtitle"
-          helper="Two is the professional ceiling. Three cover the picture."
-          value={seg.maxLines}
-          min={1}
-          max={6}
-          suffix="lines"
-          onCommit={(next) => { void updateSegmentation({ maxLines: next }); }}
-        />
-        <NumberField
-          id="seg-max-duration"
-          label="Longest on screen"
-          helper="Past this the eye goes back and reads the line a second time."
-          value={seg.maxDurationMs}
-          min={500}
-          max={30000}
-          suffix="ms"
-          onCommit={(next) => { void updateSegmentation({ maxDurationMs: next }); }}
-        />
-        <NumberField
-          id="seg-min-duration"
-          label="Shortest on screen"
-          helper="A flash under a second is unreadable, even for a single word."
-          value={seg.minDurationMs}
-          min={100}
-          max={10000}
-          suffix="ms"
-          onCommit={(next) => { void updateSegmentation({ minDurationMs: next }); }}
-        />
-        <NumberField
-          id="seg-cps"
-          label="Reading speed"
-          helper="Characters per second. Above 17 most viewers fall behind."
-          value={seg.maxCharsPerSecond}
-          min={1}
-          max={100}
-          suffix="chars/s"
-          onCommit={(next) => { void updateSegmentation({ maxCharsPerSecond: next }); }}
-        />
-        <NumberField
-          id="seg-gap-split"
-          label="Split on a pause"
-          helper="A silence at least this long ends the subtitle, so no cue spans a pause you can hear."
-          value={seg.gapSplitMs}
-          min={0}
-          max={10000}
-          suffix="ms"
-          onCommit={(next) => { void updateSegmentation({ gapSplitMs: next }); }}
-        />
-        <NumberField
-          id="seg-min-gap"
-          label="Gap between subtitles"
-          helper="Blank frames, so two subtitles do not read as one."
-          value={seg.minGapMs}
-          min={0}
-          max={2000}
-          suffix="ms"
-          onCommit={(next) => { void updateSegmentation({ minGapMs: next }); }}
-        />
+        <Section
+          title="Subtitle shape"
+          helper="These rules turn a transcript into cues. The defaults are where the BBC and Netflix guidelines agree."
+        >
+          <NumberField
+            id="seg-chars-per-line"
+            label="Characters per line"
+            helper="42 is the width that stays safe inside a 16:9 frame."
+            value={seg.maxCharsPerLine}
+            min={10}
+            max={200}
+            suffix="characters"
+            onCommit={(next) => { void updateSegmentation({ maxCharsPerLine: next }); }}
+          />
+          <NumberField
+            id="seg-max-lines"
+            label="Lines per subtitle"
+            helper="Two is the professional ceiling. Three cover the picture."
+            value={seg.maxLines}
+            min={1}
+            max={6}
+            suffix="lines"
+            onCommit={(next) => { void updateSegmentation({ maxLines: next }); }}
+          />
+          <NumberField
+            id="seg-max-duration"
+            label="Longest on screen"
+            helper="Past this the eye goes back and reads the line a second time."
+            value={seg.maxDurationMs}
+            min={500}
+            max={30000}
+            suffix="ms"
+            onCommit={(next) => { void updateSegmentation({ maxDurationMs: next }); }}
+          />
+          <NumberField
+            id="seg-min-duration"
+            label="Shortest on screen"
+            helper="A flash under a second is unreadable, even for a single word."
+            value={seg.minDurationMs}
+            min={100}
+            max={10000}
+            suffix="ms"
+            onCommit={(next) => { void updateSegmentation({ minDurationMs: next }); }}
+          />
+          <NumberField
+            id="seg-cps"
+            label="Reading speed"
+            helper="Characters per second. Above 17 most viewers fall behind."
+            value={seg.maxCharsPerSecond}
+            min={1}
+            max={100}
+            suffix="chars/s"
+            onCommit={(next) => { void updateSegmentation({ maxCharsPerSecond: next }); }}
+          />
+          <NumberField
+            id="seg-gap-split"
+            label="Split on a pause"
+            helper="A silence at least this long ends the subtitle, so no cue spans a pause you can hear."
+            value={seg.gapSplitMs}
+            min={0}
+            max={10000}
+            suffix="ms"
+            onCommit={(next) => { void updateSegmentation({ gapSplitMs: next }); }}
+          />
+          <NumberField
+            id="seg-min-gap"
+            label="Gap between subtitles"
+            helper="Blank frames, so two subtitles do not read as one."
+            value={seg.minGapMs}
+            min={0}
+            max={2000}
+            suffix="ms"
+            onCommit={(next) => { void updateSegmentation({ minGapMs: next }); }}
+          />
 
-        <div className="pt-1">
-          <button
-            type="button"
-            className={QUIET}
-            disabled={segmentationIsDefault}
-            onClick={() => { void resetSegmentation(); }}
-          >
-            <RotateCcw aria-hidden className="h-4 w-4" />
-            Restore the standard values
-          </button>
-        </div>
-      </Section>
+          <div className="pt-1">
+            <button
+              type="button"
+              className={GHOST}
+              disabled={segmentationIsDefault}
+              onClick={() => { void resetSegmentation(); }}
+            >
+              <RotateCcw aria-hidden className="h-4 w-4" />
+              Restore the standard values
+            </button>
+          </div>
+        </Section>
+      </div>
     </div>
   );
 }

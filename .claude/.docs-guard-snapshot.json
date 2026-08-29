@@ -6,9 +6,9 @@
    "size": 4722
   },
   "docs/architecture/build-and-packaging.md": {
-   "mtime_ns": 1788012902665232453,
-   "sha1": "04987176ddd906501f26bf5bb47fd3b4228ee27d",
-   "size": 16501
+   "mtime_ns": 1788013949247617061,
+   "sha1": "9af48c41f6fdc9da7710ce9d795e7fb1f7b2640c",
+   "size": 16478
   },
   "docs/architecture/ipc-and-security.md": {
    "mtime_ns": 1788013087194510158,
@@ -46,9 +46,9 @@
    "size": 24543
   },
   "docs/engines/verification.md": {
-   "mtime_ns": 1788010163214568479,
-   "sha1": "99c441c0246ee26672fe91be7efc257a427adc2f",
-   "size": 21120
+   "mtime_ns": 1788014103524311044,
+   "sha1": "b63bee2c0e1341744b1863a5439586dde8419299",
+   "size": 23686
   },
   "docs/providers/cloud-providers.md": {
    "mtime_ns": 1788012671437880302,
@@ -56,14 +56,14 @@
    "size": 32125
   },
   "docs/releasing.md": {
-   "mtime_ns": 1788010354622971033,
-   "sha1": "388a025cf94cb690fb7aca283acee1e4db5174da",
-   "size": 17690
+   "mtime_ns": 1788013940720926791,
+   "sha1": "862085af2973734b34f3294b43bcbaf0375e80fb",
+   "size": 17899
   },
   "docs/superpowers/specs/2026-08-29-dropscribe-design.md": {
-   "mtime_ns": 1788010345752522849,
-   "sha1": "f1c3368999aa7da8d92e1fa8aa51efe70b6bea39",
-   "size": 65519
+   "mtime_ns": 1788013275461946281,
+   "sha1": "4f7bdb4672a4960d7637f9cb93ca44827a33b5c7",
+   "size": 66483
   },
   "electron/api-types.ts": {
    "mtime_ns": 1788012756162761444,
@@ -71,9 +71,9 @@
    "size": 8800
   },
   "electron/binaries-runtime.ts": {
-   "mtime_ns": 1788010057810880158,
-   "sha1": "c6d0c506b375e39107d3db2f3d626e9dead488ba",
-   "size": 6116
+   "mtime_ns": 1788013275461186369,
+   "sha1": "1d65e70ac55e743c67a58f79466a48836d1c2ab3",
+   "size": 6124
   },
   "electron/engines/chunking.ts": {
    "mtime_ns": 1788010268758836186,
@@ -86,9 +86,14 @@
    "size": 1468
   },
   "electron/engines/parakeet-cpp.ts": {
-   "mtime_ns": 1788012561886183755,
-   "sha1": "3943d3a88f09a6a5cd55fc09ffd8e4d838777457",
-   "size": 11109
+   "mtime_ns": 1788013658131163057,
+   "sha1": "dbe124b5d6096b25055a647575d6329336be219b",
+   "size": 7147
+  },
+  "electron/engines/parakeet-tokens.ts": {
+   "mtime_ns": 1788013658130995891,
+   "sha1": "e68b310faaa4210d6d43299a06d07a093e0f2d61",
+   "size": 6002
   },
   "electron/engines/types.ts": {
    "mtime_ns": 1788012340986180806,
@@ -96,9 +101,14 @@
    "size": 2665
   },
   "electron/engines/whisper-cpp.ts": {
-   "mtime_ns": 1788010282663373728,
-   "sha1": "3539ef2533f054ec56700eb4e86e32305679f23e",
-   "size": 16504
+   "mtime_ns": 1788013460120599631,
+   "sha1": "c37bdf554de905dc3a6ae519e63e853d77754df3",
+   "size": 10260
+  },
+  "electron/engines/whisper-json.ts": {
+   "mtime_ns": 1788013448240682622,
+   "sha1": "430936c8b61e33e866e74dd5de2f90a667176869",
+   "size": 7841
   },
   "electron/ffmpeg.ts": {
    "mtime_ns": 1788010198517360421,
@@ -106,9 +116,9 @@
    "size": 22875
   },
   "electron/main.ts": {
-   "mtime_ns": 1788013025885935402,
-   "sha1": "214d44800490ea27084fc345a6f47b45ff0aa3e6",
-   "size": 47711
+   "mtime_ns": 1788013901926130972,
+   "sha1": "fe875301fb2fa80e08158f0e968cd906b1ab9a5b",
+   "size": 48945
   },
   "electron/path-policy.ts": {
    "mtime_ns": 1788010095971408973,
@@ -196,8 +206,8 @@
    "size": 1704
   },
   "electron/shared/models.ts": {
-   "mtime_ns": 1788009232746155377,
-   "sha1": "8d63f97cabc04b1a8fea0dccf08bdaea807d2794",
+   "mtime_ns": 1788013251053537249,
+   "sha1": "f088776807b332e2db457e2866ace34cc1115388",
    "size": 6857
   },
   "electron/shared/providers.ts": {
@@ -206,9 +216,9 @@
    "size": 4675
   },
   "electron/shared/subtitles.ts": {
-   "mtime_ns": 1788012586344917846,
-   "sha1": "b35bacb966d6a6785c8b2cc205870f01b94cc38f",
-   "size": 13898
+   "mtime_ns": 1788013301988136894,
+   "sha1": "1b90663d6ed708b8977fd8105f674ca478610a15",
+   "size": 13777
   },
   "electron/shared/transcript.ts": {
    "mtime_ns": 1788008771954211924,
@@ -221,9 +231,9 @@
    "size": 29710
   },
   "scripts/binaries.mjs": {
-   "mtime_ns": 1788012733943212247,
-   "sha1": "e5521b29397f8092a4df32b0bda23ab7a2e632ed",
-   "size": 22794
+   "mtime_ns": 1788013337850176475,
+   "sha1": "16daf06e4e9024378ca72e87edddfc791afc3cb3",
+   "size": 23143
   },
   "scripts/check-engine-binaries.mjs": {
    "mtime_ns": 1788013129513652518,
@@ -236,14 +246,19 @@
    "size": 3685
   },
   "scripts/fetch-binaries.mjs": {
-   "mtime_ns": 1788012975218014008,
-   "sha1": "9889f6c56cf3a4b1fa3b32e459110655800689c3",
-   "size": 16754
+   "mtime_ns": 1788013337850408391,
+   "sha1": "43da8a187b972024dbe422c6b0c72f625fb56cff",
+   "size": 16799
   },
   "scripts/verify-model-catalogue.mjs": {
    "mtime_ns": 1788012891699706696,
    "sha1": "17343830d830ad2db69b2ee45c30a55a360d7318",
    "size": 15047
+  },
+  "scripts/verify-packaged-binaries.mjs": {
+   "mtime_ns": 1788013220532776792,
+   "sha1": "bc1526c64351468f6bb0c26cd908c95f0a89b4a9",
+   "size": 7283
   },
   "src/index.css": {
    "mtime_ns": 1788012595712629116,
@@ -340,11 +355,6 @@
    "sha1": "facd8274a0a475f3c5703518c32e3d9ce10cfa76",
    "size": 24618
   },
-  "test/__probe.test.ts": {
-   "mtime_ns": 1788013166140485923,
-   "sha1": "8b1fe7889b5664604c2d815e8b838fff05995ba8",
-   "size": 1014
-  },
   "test/exports.test.ts": {
    "mtime_ns": 1788012747659817802,
    "sha1": "f691e21d3df1c5ec927490af39746b7530425fc3",
@@ -366,9 +376,9 @@
    "size": 4474
   },
   "test/parakeet-parse.test.ts": {
-   "mtime_ns": 1788012987675411050,
-   "sha1": "9b8b44d5484c2d0ac892d5d4af853e9be12510a0",
-   "size": 10826
+   "mtime_ns": 1788013596795498683,
+   "sha1": "b4170fc9fe1290e69b5caf7d4ca57bd7553c31a4",
+   "size": 10750
   },
   "test/subtitles.test.ts": {
    "mtime_ns": 1788012602313971499,
@@ -380,13 +390,18 @@
    "sha1": "025939fd12ac2e18fc34ab082687718d073fd3e4",
    "size": 7727
   },
+  "test/whisper-json.test.ts": {
+   "mtime_ns": 1788013641593150907,
+   "sha1": "50dcb37f65de58556af9c8ad530680678fdc9a07",
+   "size": 6695
+  },
   "test/whisper-parse.test.ts": {
-   "mtime_ns": 1788013055784450600,
-   "sha1": "aa06c0f665cd2a1e5e62fcd2d285eda51115166d",
-   "size": 14638
+   "mtime_ns": 1788013607140234482,
+   "sha1": "949a78cce32b6133de2b805bc4ea0ad9c0d60df0",
+   "size": 12005
   }
  },
  "last_blocked": null,
- "taken_at": 1788013220.009403,
+ "taken_at": 1788014375.2587268,
  "version": 1
 }

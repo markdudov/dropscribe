@@ -171,6 +171,13 @@ export function TargetPicker(): ReactElement {
 
   return (
     <div className="relative" ref={rootRef}>
+      {/*
+        Header chrome, not a form field. It is the same material and the same
+        height as the gear beside it — `.btn-ghost` — so the two read as one
+        toolbar rather than as a control dropped into a title bar. While the
+        popover is open the trigger holds its hover state, because a menu whose
+        button has gone quiet looks detached from it.
+      */}
       <button
         ref={triggerRef}
         type="button"
@@ -178,7 +185,9 @@ export function TargetPicker(): ReactElement {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Transcribe with ${currentLabel}`}
-        className="flex max-w-[19rem] items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+        className={`btn-ghost flex max-w-[19rem] items-center gap-2 ${
+          open ? 'border-slate-400 bg-slate-50 dark:border-white/20 dark:bg-white/[0.08]' : ''
+        }`}
       >
         {target?.kind === 'cloud' ? (
           <Cloud className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
@@ -186,14 +195,24 @@ export function TargetPicker(): ReactElement {
           <Cpu className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
         )}
         <span className="truncate">{currentLabel}</span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 ease-crisp dark:text-slate-500 ${
+            open ? 'rotate-180' : ''
+          }`}
+          aria-hidden="true"
+        />
       </button>
 
       {open ? (
+        /*
+          A panel above the window, not a rectangle painted on it: the raised
+          ink step plus `shadow-modal` is what separates it from the header it
+          overlaps, and the 4px rise gives the eye somewhere to follow.
+        */
         <div
           role="listbox"
           aria-label="Transcribe with"
-          className="absolute right-0 z-30 mt-1.5 max-h-[26rem] w-[24rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40"
+          className="animate-fade-up absolute right-0 z-30 mt-2 max-h-[26rem] w-[24rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-modal dark:border-white/[0.07] dark:bg-ink-850"
         >
           {groups.map((group) => (
             <div key={group.key} role="group" aria-labelledby={`target-group-${group.key}`}>
@@ -222,7 +241,17 @@ export function TargetPicker(): ReactElement {
                       setTarget(choice.target);
                       close();
                     }}
-                    className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition enabled:hover:bg-brand-subtle disabled:cursor-not-allowed disabled:opacity-55"
+                    /*
+                      The selected row is a brand wash rather than a filled bar.
+                      A heavy background in a list of two-line rows reads as a
+                      focus ring that has got stuck; a 12% tint says "this one"
+                      and still lets the hover state be visible on top of it.
+                    */
+                    className={`flex w-full items-start gap-2 rounded-xl px-2 py-1.5 text-left transition duration-150 ease-crisp disabled:cursor-not-allowed disabled:opacity-55 ${
+                      selected
+                        ? 'bg-brand-subtle'
+                        : 'enabled:hover:bg-slate-100 dark:enabled:hover:bg-white/[0.06]'
+                    }`}
                   >
                     <Check
                       className={`mt-0.5 h-4 w-4 shrink-0 text-brand ${selected ? '' : 'invisible'}`}
@@ -251,7 +280,7 @@ export function TargetPicker(): ReactElement {
           {!anyChoice ? (
             // The honest empty state. A picker with six greyed-out rows and no
             // way forward is a dead end; this is the way out of it.
-            <div className="border-t border-slate-200 px-2 py-3 dark:border-slate-700">
+            <div className="mt-1 border-t border-slate-200 px-2 py-3 dark:border-white/[0.06]">
               <p className="text-sm text-slate-600 dark:text-slate-300">
                 Nothing is ready yet. Download a local model, or add a provider key.
               </p>
@@ -261,7 +290,7 @@ export function TargetPicker(): ReactElement {
                   close();
                   openSettings('models');
                 }}
-                className="mt-2 rounded-lg bg-brand px-2.5 py-1.5 text-sm font-medium text-white transition hover:bg-brand-hover"
+                className="btn-primary mt-2.5"
               >
                 Open settings
               </button>

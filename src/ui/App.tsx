@@ -81,10 +81,20 @@ export function App(): ReactElement {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="drag-region flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-2.5 dark:border-slate-800">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileAudio className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-          <h1 className="truncate text-sm font-semibold tracking-tight">DropScribe</h1>
+      {/*
+        The header is the window's only drag handle, and on macOS it is also the
+        strip the traffic lights are drawn into — hence `titlebar-inset`, which
+        reserves their 84px on that platform and nothing anywhere else. It is
+        translucent over the window's gradient rather than a solid bar, so the
+        material reads as one surface with a lit top edge instead of two stacked
+        rectangles.
+      */}
+      <header className="drag-region titlebar-inset relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-xl dark:border-white/[0.06] dark:bg-ink-950/70">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-sheen shadow-glow">
+            <FileAudio className="h-4 w-4 text-white" aria-hidden="true" />
+          </span>
+          <h1 className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em]">DropScribe</h1>
         </div>
 
         <div className="no-drag ml-auto flex items-center gap-2">
@@ -94,7 +104,7 @@ export function App(): ReactElement {
             onClick={() => openSettings()}
             aria-label="Settings"
             title="Settings"
-            className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            className="btn-icon"
           >
             <SettingsIcon className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -107,7 +117,7 @@ export function App(): ReactElement {
         // once, and no amount of retrying a job will fix it.
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+          className="flex shrink-0 items-center gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-400/25 dark:bg-amber-400/[0.08] dark:text-amber-200"
         >
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">
@@ -135,7 +145,7 @@ export function App(): ReactElement {
           // models directory. Showing the empty-queue drop zone here would be a
           // lie: with no target picked yet, a file dropped into it bounces.
           <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm text-slate-400 dark:text-slate-600">Starting…</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Starting…</p>
           </div>
         )}
       </main>

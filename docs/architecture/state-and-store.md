@@ -201,3 +201,16 @@ times a second for twenty minutes.
   views and the "can I start a job at all" predicate are selectors over the
   mirror, not fields beside it. A derived field is a second thing to invalidate,
   and the one that is missed is always the one on screen.
+
+
+## Deleting a model asks first
+
+`ModelsTab`'s Delete turns itself into `Delete <size>` plus `Cancel` rather than
+acting on the first click. The files are between half a gigabyte and three
+gigabytes and getting one back is a download, not an undo — on a slow connection
+a mis-aimed click costs a quarter of an hour.
+
+The confirmation is in-place rather than a modal on purpose: a modal steals focus
+and asks about something that is already under the pointer. `Cancel` sits beside
+the confirm rather than relying on a timeout, so a user who meant something else
+always has a target.

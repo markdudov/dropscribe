@@ -68,8 +68,14 @@ export function JobList(): ReactElement {
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="Queue">
-      <div className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-1">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      {/*
+        A toolbar belonging to the window rather than a strip laid on top of it:
+        no fill of its own, a small-caps count on the left, ghost actions on the
+        right, and one hairline underneath doing all the separating. A filled bar
+        here would stack a third rectangle between the header and the cards.
+      */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-5 pb-2.5 pt-1 dark:border-white/[0.06]">
+        <h2 className="tnum text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {jobs.length === 1 ? '1 file' : `${jobs.length} files`}
         </h2>
 
@@ -78,7 +84,7 @@ export function JobList(): ReactElement {
             type="button"
             onClick={() => void clearFinished()}
             disabled={finishedCount === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="btn-ghost inline-flex items-center gap-1.5 px-2 py-1 text-xs"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Clear finished
@@ -89,7 +95,7 @@ export function JobList(): ReactElement {
             // Nothing has finished means there is nothing to render, and a save
             // dialog that opens onto an empty batch is worse than a dim button.
             disabled={doneIds.length === 0 || exporting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="btn-ghost inline-flex items-center gap-1.5 px-2 py-1 text-xs"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
             Export all…
@@ -98,12 +104,12 @@ export function JobList(): ReactElement {
       </div>
 
       {jobs.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-4 pb-6 text-center">
-          <ListChecks className="h-8 w-8 text-slate-300 dark:text-slate-700" aria-hidden="true" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 px-5 pb-6 text-center">
+          <ListChecks className="h-8 w-8 text-slate-300 dark:text-ink-600" aria-hidden="true" />
           <p className="text-sm text-slate-500 dark:text-slate-400">The queue is empty.</p>
         </div>
       ) : (
-        <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
+        <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-4 pt-3">
           {jobs.map((job) => (
             <JobRow key={job.id} job={job} />
           ))}

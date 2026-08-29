@@ -25,14 +25,6 @@ export interface TranscriptViewProps {
   onClose?: () => void;
 }
 
-const BUTTON =
-  'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
-  'focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-50';
-const PRIMARY = `${BUTTON} bg-brand text-white hover:bg-brand-hover`;
-const QUIET =
-  `${BUTTON} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 ` +
-  'dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
-
 const FORMAT_LABELS: Readonly<Record<ExportFormat, string>> = {
   txt: 'Text',
   md: 'Markdown',
@@ -128,7 +120,7 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm dark:bg-ink-950/60"
       onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div
@@ -137,27 +129,33 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
         aria-modal="true"
         aria-labelledby="transcript-title"
         tabIndex={-1}
-        className="flex h-[min(88vh,48rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl focus:outline-none dark:bg-slate-950"
+        className="flex h-[min(88vh,48rem)] w-full max-w-4xl animate-fade-up flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-modal focus:outline-none dark:border-white/[0.07] dark:bg-ink-900"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3.5 dark:border-white/[0.06]">
           <div className="min-w-0">
-            <h2 id="transcript-title" className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
+            <h2 id="transcript-title" className="truncate text-base font-semibold tracking-[-0.01em] text-slate-900 dark:text-white">
               {title}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Transcript</p>
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Transcript</p>
           </div>
           <button
             type="button"
             onClick={close}
             aria-label="Close the transcript"
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand/50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            className="btn-icon"
           >
             <X aria-hidden className="h-4 w-4" />
           </button>
         </header>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-2 dark:border-slate-800">
-          <div role="radiogroup" aria-label="Format" className="flex flex-wrap gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 dark:border-white/[0.06]">
+          {/*
+            The same segmented control as the settings tabs, because it is the
+            same gesture: six mutually exclusive renderings of one transcript.
+            Six loose pills would read as six things you could do; one track
+            with a raised cell reads as one switch that is currently set to Text.
+          */}
+          <div role="radiogroup" aria-label="Format" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/[0.04]">
             {EXPORT_FORMATS.map((entry) => {
               const selected = entry === format;
               return (
@@ -168,10 +166,10 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
                   aria-checked={selected}
                   onClick={() => { setFormat(entry); }}
                   className={
-                    'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand/50 ' +
+                    'rounded-xl px-3 py-1.5 text-sm font-medium transition duration-150 ease-crisp ' +
                     (selected
-                      ? 'bg-brand-subtle text-brand'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800')
+                      ? 'bg-white text-slate-900 shadow-panel dark:bg-ink-750 dark:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200')
                   }
                 >
                   {FORMAT_LABELS[entry]}
@@ -180,21 +178,38 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
             })}
           </div>
 
+          {/*
+            Export is the reason the panel is open — Copy is the shortcut for
+            when the destination is another window rather than a file — so
+            Export takes the one primary treatment and Copy stays ghost beside
+            it. Two filled buttons side by side is two of them asking to be
+            pressed, which is one too many.
+          */}
           <div className="flex gap-2">
-            <button type="button" className={QUIET} onClick={() => { void onCopy(); }} disabled={busy || text === null}>
+            <button
+              type="button"
+              className="btn-ghost inline-flex items-center gap-2 py-2"
+              onClick={() => { void onCopy(); }}
+              disabled={busy || text === null}
+            >
               <Copy aria-hidden className="h-4 w-4" />
               {copied ? 'Copied' : 'Copy'}
             </button>
-            <button type="button" className={PRIMARY} onClick={() => { void onExport(); }} disabled={busy || text === null}>
+            <button
+              type="button"
+              className="btn-primary inline-flex items-center gap-2"
+              onClick={() => { void onExport(); }}
+              disabled={busy || text === null}
+            >
               <Download aria-hidden className="h-4 w-4" />
               Export
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-hidden px-5 py-5">
           {error !== null ? (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950/50 dark:text-red-200">{error}</p>
+            <p className="selectable rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-500/25 dark:bg-red-500/[0.08] dark:text-red-200">{error}</p>
           ) : text === null ? (
             <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
@@ -208,7 +223,11 @@ export function TranscriptView({ jobId: jobIdProp, onClose }: TranscriptViewProp
               // for the length of a sentence.
               tabIndex={0}
               aria-label={`Transcript as ${FORMAT_LABELS[format]}`}
-              className="h-full overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand/50 dark:bg-slate-900 dark:text-slate-200"
+              // The one place in the app that is genuinely a reading surface, so
+              // it gets a raised panel of its own and the room to breathe that
+              // goes with it: monospace at 13px, relaxed leading, and selectable
+              // text, because copying a paragraph out of it is the point.
+              className="surface-raised selectable h-full overflow-auto whitespace-pre-wrap p-5 font-mono text-[0.8125rem] leading-relaxed text-slate-800 focus:outline-none dark:text-slate-200"
             >
               {text}
             </pre>

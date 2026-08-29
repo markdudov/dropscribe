@@ -204,20 +204,20 @@ export function DropZone({ variant }: DropZoneProps): ReactElement {
 
   if (variant === 'bar') {
     return (
-      <div className="shrink-0 space-y-2 px-4 pb-2 pt-3">
+      <div className="shrink-0 space-y-2 px-5 pb-2 pt-4">
         <div
           {...dropHandlers}
-          className={`flex items-center gap-3 rounded-xl border-2 border-dashed px-3 py-2.5 transition ${
+          className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 transition-all duration-200 ease-crisp ${
             dragging
-              ? 'border-brand bg-brand-subtle'
-              : 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60'
+              ? 'border-dashed border-brand bg-brand-subtle shadow-glow'
+              : 'border-slate-200 bg-slate-50/70 shadow-panel dark:border-white/[0.07] dark:bg-white/[0.025]'
           }`}
         >
           <UploadCloud
-            className={`h-5 w-5 shrink-0 ${dragging ? 'text-brand' : 'text-slate-400'}`}
+            className={`h-[1.125rem] w-[1.125rem] shrink-0 transition-colors ${dragging ? 'text-brand' : 'text-slate-400 dark:text-slate-500'}`}
             aria-hidden="true"
           />
-          <p className="min-w-0 flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
+          <p className="min-w-0 flex-1 truncate text-[0.8125rem] text-slate-600 dark:text-slate-300">
             {dragging
               ? carrying === 1
                 ? 'Release to transcribe 1 file'
@@ -228,7 +228,7 @@ export function DropZone({ variant }: DropZoneProps): ReactElement {
             type="button"
             onClick={chooseFiles}
             disabled={busy}
-            className="shrink-0 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="btn-ghost shrink-0"
           >
             <FolderOpen className="mr-1.5 inline h-4 w-4" aria-hidden="true" />
             Choose files…
@@ -240,24 +240,57 @@ export function DropZone({ variant }: DropZoneProps): ReactElement {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-5">
+      {/*
+        The border is dashed only while something is being dragged over it.
+
+        A permanent dashed rectangle filling the window is the visual language
+        of an unfinished form: it shouts "empty slot" at a user who has not asked
+        for one yet. At rest this is a quiet surface with a soft ring; the dashed
+        edge and the glow appear at the moment they mean something, which is also
+        the moment the user needs to know the window will accept the drop.
+      */}
       <div
         {...dropHandlers}
-        className={`flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center transition ${
+        className={`group relative flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border p-8 text-center transition-all duration-200 ease-crisp ${
           dragging
-            ? 'border-brand bg-brand-subtle'
-            : 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50'
+            ? 'border-dashed border-brand bg-brand-subtle shadow-glow-lg dark:bg-brand-subtle'
+            : 'border-slate-200 bg-slate-50/70 shadow-panel dark:border-white/[0.07] dark:bg-white/[0.015]'
         }`}
       >
-        <UploadCloud
-          className={`h-14 w-14 ${dragging ? 'text-brand' : 'text-slate-400 dark:text-slate-600'}`}
+        {/* A pool of light behind the icon, so the centre of an otherwise empty
+            surface has somewhere for the eye to rest. */}
+        <div
           aria-hidden="true"
+          className={`pointer-events-none absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-[58%] rounded-full blur-3xl transition-opacity duration-300 ${
+            dragging ? 'bg-brand/20 opacity-100' : 'bg-brand/[0.07] opacity-70 dark:bg-brand/[0.09]'
+          }`}
         />
-        <div className="space-y-1">
-          <p className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+        <div className="relative">
+          {dragging ? (
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 -m-3 animate-pulse-ring rounded-2xl bg-brand/20"
+            />
+          ) : null}
+          <span
+            className={`relative flex h-20 w-20 items-center justify-center rounded-2xl border transition-all duration-200 ease-crisp ${
+              dragging
+                ? 'scale-105 border-brand/40 bg-brand/15'
+                : 'border-slate-200 bg-white shadow-panel dark:border-white/[0.08] dark:bg-white/[0.04]'
+            }`}
+          >
+            <UploadCloud
+              className={`h-9 w-9 transition-colors ${dragging ? 'text-brand' : 'text-slate-400 dark:text-slate-500'}`}
+              aria-hidden="true"
+            />
+          </span>
+        </div>
+        <div className="relative space-y-2">
+          <p className="text-[1.375rem] font-semibold tracking-[-0.02em] text-slate-900 dark:text-white">
             {dragging ? 'Release to transcribe' : 'Drop audio or video here'}
           </p>
-          <p className="mx-auto max-w-md text-sm text-slate-500 dark:text-slate-400">
+          <p className="mx-auto max-w-sm text-[0.8125rem] leading-relaxed text-slate-500 dark:text-slate-400">
             {dragging
               ? carrying === 1
                 ? '1 file ready'
@@ -269,7 +302,7 @@ export function DropZone({ variant }: DropZoneProps): ReactElement {
           type="button"
           onClick={chooseFiles}
           disabled={busy}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-60"
+          className="btn-primary relative"
         >
           <FolderOpen className="mr-1.5 inline h-4 w-4" aria-hidden="true" />
           Choose files…

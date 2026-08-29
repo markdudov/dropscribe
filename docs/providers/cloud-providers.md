@@ -538,3 +538,30 @@ An omitted capability means "this adapter will not make a claim". A `false`
 means "asking is guaranteed not to work, grey the control." The distinction is
 deliberate, and a UI that treats them the same will either promise something the
 provider cannot do or hide something it can.
+
+
+## Any model id, typed by hand
+
+The model picker lists what the provider's own catalogue endpoint returned. That
+list is a convenience and never a boundary: under it, every provider card has a
+free-text field that sends whatever is typed.
+
+This is not a hedge against a bug in the discovery code. It is a consequence of
+what these APIs are. OpenRouter routes hundreds of models and adds more weekly.
+DeepInfra's `/models/list` answers with its catalogue as of today. Deepgram ships
+new `canonical_name`s without warning. Whichever list this app shows will, sooner
+or later, be missing the one model somebody wants — and all four APIs take the
+model as a plain string, so there is no technical reason to refuse it.
+
+`providers:selectModel` never validated its argument against the fetched list, so
+the feature needed no change in main: what the user types is what the adapter
+sends. A wrong id fails on the first job with the provider's own error text,
+which teaches more than a picker that silently omits the model.
+
+The placeholder shown in each field is a real id taken from that provider's
+adapter — `openai/whisper-large-v3-turbo`, `nova-3-general`, `scribe_v2`,
+`openai/gpt-4o-transcribe` — because a placeholder with a plausible-but-wrong
+shape is worse than none: the user copies its punctuation.
+
+When the stored selection is absent from the discovered list, the card says so
+under the field rather than leaving the picker looking like nothing is selected.

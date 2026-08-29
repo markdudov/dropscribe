@@ -29,7 +29,19 @@
   }
 
   body {
-    @apply bg-white font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-white font-sans text-slate-900 antialiased dark:bg-ink-950 dark:text-slate-100;
+
+    /*
+      A window, not a page.
+
+      The dark theme is a very slightly lit vertical gradient rather than one
+      flat fill: a large uniform dark rectangle reads as a void, and the eye
+      loses any sense of where the light is coming from, so every panel drawn on
+      it looks pasted rather than stacked. Two stops and a barely-there blue
+      cast is enough — anything stronger becomes a visible band on a tall
+      display.
+    */
+    background-attachment: fixed;
 
     /*
       A desktop chrome is not a document. Dragging across a job row to select
@@ -46,9 +58,26 @@
     overflow: hidden;
   }
 
+  :root.dark body {
+    background-image:
+      radial-gradient(115% 85% at 50% -12%, rgb(21 33 51 / 0.85) 0%, transparent 62%),
+      linear-gradient(180deg, #0a0e15 0%, #070a0f 100%);
+  }
+
   .selectable {
     -webkit-user-select: text;
     user-select: text;
+  }
+
+  /*
+    Numbers that change in place — a percentage, an elapsed time, a file size —
+    must not make the text around them shuffle. Tabular figures cost nothing and
+    are the difference between a progress readout that ticks and one that
+    twitches.
+  */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
   }
 
   /*
@@ -60,7 +89,21 @@
     mouse, which is why the rule is not on `:focus`.
   */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-white dark:ring-offset-slate-950;
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-white dark:ring-offset-ink-950;
+  }
+
+  /*
+    A container that only ever receives focus programmatically is not a control
+    the user navigated to.
+
+    `SettingsModal` and `TranscriptView` carry `tabIndex={-1}` and take focus
+    when they open, so the keyboard lands inside the dialog rather than behind
+    it. Without this exception the global rule draws a 2px brand ring around the
+    entire panel — pointing at nothing actionable, and looking like the panel
+    itself is the thing to press. The controls inside still ring normally.
+  */
+  [tabindex='-1']:focus-visible {
+    @apply ring-0 ring-offset-0;
   }
 
   ::selection {
@@ -77,11 +120,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full border-2 border-solid border-transparent bg-slate-300 bg-clip-padding dark:bg-slate-700;
+    @apply rounded-full border-[3px] border-solid border-transparent bg-slate-300 bg-clip-padding dark:bg-ink-600;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400 dark:bg-slate-600;
+    @apply bg-slate-400 dark:bg-ink-500;
   }
 }
 
@@ -102,6 +145,71 @@
 
   .no-drag {
     -webkit-app-region: no-drag;
+  }
+
+  /*
+    Room for the traffic lights.
+
+    The window is created with `titleBarStyle: 'hiddenInset'` on macOS, which
+    keeps the close/minimise/zoom buttons but removes the bar they normally sit
+    in — so they are drawn *over* the top-left of our own content. They occupy
+    roughly x 13-75, and the header's own `px-4` put the app name at x 16,
+    directly underneath them. Measured on macOS 26; the inset has been stable
+    for a decade but is worth re-checking if the buttons ever move.
+
+    The padding is applied from a platform attribute rather than a media query
+    because there is no CSS way to ask "is this window frameless" — and it must
+    not appear on Windows, where the same 80px would just be a hole beside the
+    app name.
+  */
+  [data-platform='darwin'] .titlebar-inset {
+    padding-left: 5.25rem;
+  }
+
+  /*
+    The three surfaces every panel in the app is built from, so a card in the
+    settings modal and a job row in the list cannot drift apart.
+
+    `surface` sits on the window. `surface-raised` sits on a surface. Each is a
+    fill plus a hairline, and in the dark theme the hairline is a low-alpha
+    white rather than a grey step — a grey border on a near-black fill reads as
+    a drawn line, while an alpha highlight reads as an edge catching light.
+  */
+  .surface {
+    @apply rounded-xl border border-slate-200 bg-white shadow-panel dark:border-white/[0.07] dark:bg-ink-900/70;
+  }
+
+  .surface-raised {
+    @apply rounded-xl border border-slate-200 bg-white shadow-panel dark:border-white/[0.09] dark:bg-ink-850;
+  }
+
+  .hairline {
+    @apply border-slate-200 dark:border-white/[0.07];
+  }
+
+  /* The one primary action per screen. A flat fill next to it stays secondary. */
+  .btn-primary {
+    @apply rounded-xl bg-brand-sheen px-4 py-2 text-sm font-semibold text-white shadow-glow transition duration-150 ease-crisp hover:brightness-110 active:brightness-95 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /*
+    The primary action of a CARD, as opposed to of a screen.
+
+    The settings list shows four provider cards at once and each has an obvious
+    next step, so each earns a filled button — but four `shadow-glow`s on one
+    screen is four things shouting, and the glow stops meaning "this one". Same
+    fill, no halo.
+  */
+  .btn-primary-quiet {
+    @apply rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition duration-150 ease-crisp hover:bg-brand-hover active:bg-brand-deep disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition duration-150 ease-crisp hover:border-slate-400 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/[0.08];
+  }
+
+  .btn-icon {
+    @apply rounded-xl border border-slate-300 bg-white p-2 text-slate-600 transition duration-150 ease-crisp hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:border-white/20 dark:hover:bg-white/[0.08] dark:hover:text-white;
   }
 
   /*

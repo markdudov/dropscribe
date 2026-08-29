@@ -38,6 +38,18 @@ const STATUS_LABEL: Record<JobStatus, string> = {
 };
 
 /**
+ * The secondary actions, revealed by the pointer and by the keyboard.
+ *
+ * Four buttons on every row of a long queue is a wall; two is a row you can
+ * read. `opacity-0` rather than `hidden` is the whole trick — the buttons stay
+ * in the layout and in the tab order, so nothing shifts when they appear and a
+ * keyboard user reaches them exactly where a mouse user sees them. Tabbing into
+ * one puts the row in `:focus-within`, which reveals it.
+ */
+const REVEALED =
+  'inline-flex opacity-0 transition-opacity duration-150 ease-crisp group-hover:opacity-100 group-focus-within:opacity-100';
+
+/**
  * `h:mm:ss` past an hour, `m:ss` below it.
  *
  * Always-`0:04:12` is what a machine writes; `4:12` is what a person reads. The
@@ -61,6 +73,20 @@ function statusClasses(status: JobStatus): string {
   return 'text-brand';
 }
 
+/**
+ * The same six states as a 6px dot.
+ *
+ * The word is the accessible answer and the dot is the glanceable one: scanning
+ * a queue for the red one is a colour task, not a reading task. It carries no
+ * information the label does not, which is why it is `aria-hidden`.
+ */
+function statusDotClasses(status: JobStatus): string {
+  if (status === 'done') return 'bg-emerald-500';
+  if (status === 'failed') return 'bg-red-500';
+  if (status === 'cancelled') return 'bg-slate-400 dark:bg-ink-500';
+  return 'bg-brand';
+}
+
 interface ActionButtonProps {
   onClick: () => void;
   label: string;
@@ -79,19 +105,25 @@ function ActionButton({
   disabled,
   title,
 }: ActionButtonProps): ReactElement {
+  /*
+    Every row action is a ghost button, including the `primary` one. A filled,
+    glowing button repeated down twenty rows would spend the screen's one loud
+    accent twenty times over; a brand-tinted ghost is enough to say "this is the
+    one you came for" without competing with the drop zone's real primary.
+  */
   const toneClasses =
     tone === 'primary'
-      ? 'border-brand bg-brand text-white hover:bg-brand-hover'
+      ? 'border-brand/40 bg-brand-subtle text-brand hover:border-brand/60 hover:bg-brand/20 hover:text-brand-hover dark:border-brand/40 dark:bg-brand-subtle dark:text-brand-hover dark:hover:border-brand/60 dark:hover:bg-brand/20'
       : tone === 'danger'
-        ? 'border-slate-300 bg-white text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-red-500/50 dark:hover:bg-red-500/10 dark:hover:text-red-400'
-        : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700';
+        ? 'hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-400'
+        : '';
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled === true}
       {...(title !== undefined ? { title } : {})}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClasses}`}
+      className={`btn-ghost inline-flex items-center gap-1.5 px-2 py-1 text-xs ${toneClasses}`}
     >
       {icon}
       {label}
@@ -146,16 +178,23 @@ function FormatMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        className={`btn-ghost inline-flex items-center gap-1.5 px-2 py-1 text-xs ${
+          open ? 'border-slate-400 bg-slate-50 dark:border-white/20 dark:bg-white/[0.08]' : ''
+        }`}
       >
         {icon}
         {label}
-        <ChevronDown className="h-3 w-3 text-slate-400" aria-hidden="true" />
+        <ChevronDown
+          className={`h-3 w-3 text-slate-400 transition-transform duration-150 ease-crisp dark:text-slate-500 ${
+            open ? 'rotate-180' : ''
+          }`}
+          aria-hidden="true"
+        />
       </button>
       {open ? (
         <span
           role="menu"
-          className="absolute left-0 z-30 mt-1 flex w-28 flex-col rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="animate-fade-up absolute left-0 z-30 mt-1.5 flex w-28 flex-col rounded-xl border border-slate-200 bg-white p-1 shadow-modal dark:border-white/[0.07] dark:bg-ink-850"
         >
           {EXPORT_FORMATS.map((format) => (
             <button
@@ -166,7 +205,7 @@ function FormatMenu({
                 setOpen(false);
                 onPick(format);
               }}
-              className="rounded-md px-2 py-1 text-left text-xs font-medium uppercase tracking-wide text-slate-700 transition hover:bg-brand-subtle dark:text-slate-200"
+              className="rounded-md px-2 py-1 text-left text-xs font-medium uppercase tracking-wide text-slate-700 transition duration-150 ease-crisp hover:bg-brand-subtle dark:text-slate-200"
             >
               {format}
             </button>
@@ -219,7 +258,12 @@ export function JobRow({ job }: JobRowProps): ReactElement {
   const showBar = job.status === 'queued' || job.status === 'preparing' || job.status === 'running';
 
   return (
-    <li className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+    /*
+      A card on the window rather than a line in a table. `group` is what lets
+      the secondary actions below stay out of the way until the pointer or the
+      keyboard arrives at this particular row.
+    */
+    <li className="group surface px-3.5 py-3 transition-colors duration-200 ease-crisp hover:border-slate-300 dark:hover:border-white/[0.12]">
       <div className="flex items-baseline gap-2">
         {/*
           The full path is a `title` rather than a second line. Two files called
@@ -236,28 +280,43 @@ export function JobRow({ job }: JobRowProps): ReactElement {
         </span>
         <span
           aria-live="polite"
-          className={`shrink-0 text-xs font-semibold ${statusClasses(job.status)}`}
+          className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold ${statusClasses(job.status)}`}
         >
+          <span
+            aria-hidden="true"
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDotClasses(job.status)}`}
+          />
           {STATUS_LABEL[job.status]}
         </span>
       </div>
 
-      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
-        {job.durationMs !== null ? <span>{clock(job.durationMs)} long</span> : null}
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.75rem] text-slate-500 dark:text-slate-400">
+        {job.durationMs !== null ? (
+          <span>
+            <span className="tnum">{clock(job.durationMs)}</span> long
+          </span>
+        ) : null}
         {job.durationMs !== null ? <span aria-hidden="true">·</span> : null}
         <span className="truncate">{label}</span>
         {elapsedMs !== null ? <span aria-hidden="true">·</span> : null}
         {elapsedMs !== null ? (
           <span>
-            {isTerminal(job.status) ? 'took' : 'elapsed'} {clock(elapsedMs)}
+            {isTerminal(job.status) ? 'took' : 'elapsed'}{' '}
+            <span className="tnum">{clock(elapsedMs)}</span>
           </span>
         ) : null}
       </p>
 
       {showBar ? (
-        <div className="mt-2">
+        <div className="mt-2.5">
+          {/*
+            The track is a low-alpha white rather than a grey fill, so on the
+            dark card it reads as a groove cut into the surface instead of a
+            second bar sitting on it. The fill is the brand gradient — the only
+            place in a row that carries the accent at full strength.
+          */}
           <div
-            className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+            className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/[0.06]"
             role="progressbar"
             aria-label={`${job.fileName}: ${job.progress.stage}`}
             {...(percent !== null
@@ -266,22 +325,30 @@ export function JobRow({ job }: JobRowProps): ReactElement {
           >
             {percent !== null ? (
               <div
-                className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+                className="h-full rounded-full bg-brand-sheen transition-[width] duration-300 ease-crisp"
                 style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
               />
             ) : (
-              <div className="bar-indeterminate h-full rounded-full bg-brand" />
+              <div className="bar-indeterminate h-full rounded-full bg-brand-sheen" />
             )}
           </div>
-          <p aria-live="polite" className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p
+            aria-live="polite"
+            className="mt-1.5 text-[0.75rem] text-slate-500 dark:text-slate-400"
+          >
             {job.progress.stage}
-            {percent !== null ? ` · ${Math.round(percent)}%` : ''}
+            {percent !== null ? (
+              <>
+                {' · '}
+                <span className="tnum">{Math.round(percent)}%</span>
+              </>
+            ) : null}
           </p>
         </div>
       ) : null}
 
       {job.status === 'failed' && job.error !== undefined ? (
-        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
+        <div className="mt-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-500/25 dark:bg-red-500/[0.08] dark:text-red-300">
           <p className="selectable font-medium">{job.error.message}</p>
           {job.error.retryable ? null : (
             <p className="mt-0.5 opacity-80">Trying again will not help until something changes.</p>
@@ -295,10 +362,15 @@ export function JobRow({ job }: JobRowProps): ReactElement {
               handling and the accessible name.
             */
             <details className="mt-1.5">
-              <summary className="cursor-pointer select-none font-medium opacity-80 hover:opacity-100">
+              <summary className="cursor-pointer select-none font-medium opacity-80 transition-opacity duration-150 ease-crisp hover:opacity-100">
                 Show the detail
               </summary>
-              <pre className="selectable mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-red-100/70 p-2 font-mono text-[0.6875rem] leading-relaxed dark:bg-red-950/40">
+              {/*
+                The detail is a panel on a panel, not more red: once it is open
+                the user is reading machine output, and tinting it the colour of
+                the alarm makes a stack trace harder to read for no gain.
+              */}
+              <pre className="surface-raised selectable mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words p-2.5 font-mono text-xs leading-relaxed text-slate-700 dark:text-slate-300">
                 {job.error.detail}
               </pre>
             </details>
@@ -306,7 +378,7 @@ export function JobRow({ job }: JobRowProps): ReactElement {
         </div>
       ) : null}
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {running ? (
           <ActionButton
             onClick={() => void cancelJob(job.id)}
@@ -335,12 +407,14 @@ export function JobRow({ job }: JobRowProps): ReactElement {
               onPick={(format) => void exportTranscript(job.id, format)}
               icon={<Download className="h-3.5 w-3.5" aria-hidden="true" />}
             />
-            <ActionButton
-              onClick={() => void revealFile(job.filePath)}
-              label="Reveal"
-              title="Show the source file"
-              icon={<FolderSearch className="h-3.5 w-3.5" aria-hidden="true" />}
-            />
+            <span className={REVEALED}>
+              <ActionButton
+                onClick={() => void revealFile(job.filePath)}
+                label="Reveal"
+                title="Show the source file"
+                icon={<FolderSearch className="h-3.5 w-3.5" aria-hidden="true" />}
+              />
+            </span>
           </>
         ) : null}
 
@@ -363,18 +437,20 @@ export function JobRow({ job }: JobRowProps): ReactElement {
         ) : null}
 
         {/* Remove is always available, including mid-run: main cancels first. */}
-        <ActionButton
-          onClick={() => void removeJob(job.id)}
-          label="Remove"
-          tone="danger"
-          icon={
-            running ? (
-              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-            ) : (
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-            )
-          }
-        />
+        <span className={REVEALED}>
+          <ActionButton
+            onClick={() => void removeJob(job.id)}
+            label="Remove"
+            tone="danger"
+            icon={
+              running ? (
+                <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              )
+            }
+          />
+        </span>
       </div>
     </li>
   );

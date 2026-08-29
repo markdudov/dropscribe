@@ -20,6 +20,23 @@ const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 document.documentElement.classList.toggle('dark', prefersDark);
 document.documentElement.style.colorScheme = prefersDark ? 'dark' : 'light';
 
+/*
+ * The platform, on the root element, before React paints anything.
+ *
+ * `titlebar-inset` in index.css needs it, and it needs it on the FIRST frame:
+ * reading it from `getAppInfo()` would leave the app name sitting under the
+ * macOS traffic lights for the duration of an IPC round trip, which is visible
+ * as a jump on every launch. `navigator.platform` is deprecated for feature
+ * detection on the web and is exactly right here — this renderer only ever runs
+ * inside our own Electron build, and the answer is available synchronously.
+ */
+const platform = navigator.platform.startsWith('Mac')
+  ? 'darwin'
+  : navigator.platform.startsWith('Win')
+    ? 'win32'
+    : 'linux';
+document.documentElement.dataset['platform'] = platform;
+
 /**
  * Swallow every drop that misses the drop zone.
  *
