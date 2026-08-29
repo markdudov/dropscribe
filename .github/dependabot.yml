@@ -47,6 +47,17 @@ updates:
         update-types:
           - version-update:semver-major
 
+      # Vite majors cannot land ahead of electron-vite. Its peer range is
+      # `vite ^5 || ^6 || ^7`, so a vite 8 pull request fails at `npm ci` on
+      # both runners before a single test executes — the bump is not wrong, it
+      # is simply not installable yet. Left ignored so the weekly run stops
+      # reopening a PR that cannot go green; remove this entry once
+      # electron-vite ships a release whose peer range admits the new major,
+      # and the upgrade lands as the deliberate toolchain change it is.
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+
   - package-ecosystem: github-actions
     directory: '/'
     schedule:
