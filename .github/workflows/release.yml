@@ -23,7 +23,7 @@ jobs:
     name: macOS (arm64 + x64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -112,7 +112,7 @@ jobs:
     name: Windows (x64)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -172,7 +172,7 @@ jobs:
       # The one job that writes. The build jobs stay read-only.
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # RELEASE_NOTES.md is the release body verbatim, and the paragraphs about
       # the missing signature are the most important thing on the page: they are
