@@ -1018,6 +1018,14 @@ function registerIpc(): void {
     // somewhere other than where they just said to put it.
     await writeFile(result.filePath, text, 'utf8');
     revealable.add(result.filePath);
+    // Show the user where it went.
+    //
+    // A Save dialog tells you the destination and then the window closes over
+    // it; five minutes later "where did I put that SRT" is a real question. The
+    // reveal answers it once, at the only moment the answer is obvious, and
+    // costs nothing if the user already knew — the Finder window it opens is the
+    // folder they just chose.
+    shell.showItemInFolder(result.filePath);
     return result.filePath;
   });
 
@@ -1028,6 +1036,15 @@ function registerIpc(): void {
 
     const settings = getSettings();
     let written = 0;
+    /*
+      The first file written, kept so the batch can end by revealing it.
+
+      One reveal, not one per file: a batch of ten transcripts would otherwise
+      open ten Finder windows, and `showItemInFolder` selects the item, so the
+      last call would win anyway while the other nine sat behind it. Revealing
+      the first file both opens the right folder and points at something real.
+    */
+    let firstWritten: string | null = null;
 
     for (const id of ids) {
       const job = findJob(id);
@@ -1051,9 +1068,14 @@ function registerIpc(): void {
           text,
         );
         revealable.add(file);
+        if (firstWritten === null) firstWritten = file;
         written++;
       }
     }
+
+    // Same reason as the single export: the one moment the destination is
+    // obvious is right now.
+    if (firstWritten !== null) shell.showItemInFolder(firstWritten);
 
     return written;
   });

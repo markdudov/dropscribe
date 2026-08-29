@@ -75,6 +75,12 @@ export const DEFAULT_SEGMENTATION: SegmentationOptions = {
   includeSpeakers: false,
 };
 
+/**
+ * Punctuation that ends a clause. A weaker break than a sentence, and the
+ * second choice when a cue has to be split somewhere.
+ */
+const CLAUSE_END = /[,;:、，；：]["'”’»)\]]*$/u;
+
 /** Sentence-final punctuation, including the CJK and Arabic forms. */
 const SENTENCE_END = /[.!?…。！？؟]["'”’»)\]]*$/u;
 
@@ -178,6 +184,48 @@ function interpolateWords(text: string, startMs: number, endMs: number, speaker?
 }
 
 /**
+ * How many lines a greedy first-fit needs for these words.
+ *
+ * Greedy is not a heuristic here, it is exact: with the word order fixed, first-fit
+ * minimises the line count. So this is the true answer to "can this cue be drawn
+ * in `maxLines` lines", which is the question the accumulator below actually
+ * needs to ask.
+ *
+ * A single word longer than a line still counts as one line. It has to go
+ * somewhere, and refusing to place it would lose transcribed text.
+ */
+function linesNeeded(words: readonly string[], maxCharsPerLine: number): number {
+  if (words.length === 0) return 0;
+  let lines = 1;
+  let current = 0;
+  for (const word of words) {
+    const candidate = current === 0 ? word.length : current + 1 + word.length;
+    if (candidate > maxCharsPerLine && current > 0) {
+      lines += 1;
+      current = word.length;
+    } else {
+      current = candidate;
+    }
+  }
+  return lines;
+}
+
+/**
+ * Whether these words can be drawn as a legal cue.
+ *
+ * This replaced a character budget of `maxCharsPerLine * maxLines`, which was
+ * subtly and visibly wrong. 84 characters is not the same as "fits on two
+ * 42-character lines": the break has to fall between words. Measured on a real
+ * transcript — "This video is for beginner video editors who waste hours on
+ * tasks that could be done" is 83 characters, passed the budget, and had no
+ * legal two-line split at all, so the layout fell through to a greedy fill and
+ * drew THREE lines. See docs/bugs/0003.
+ */
+function fitsInLines(words: readonly string[], maxCharsPerLine: number, maxLines: number): boolean {
+  return linesNeeded(words, maxCharsPerLine) <= maxLines;
+}
+
+/**
  * Transcript → cues.
  *
  * One pass over every word in the transcript, accumulating into a cue and
@@ -214,6 +262,42 @@ export function resegment(
     pending = [];
   };
 
+  /**
+   * Close the cue at the best linguistic break inside it, carrying the rest over.
+   *
+   * A cue that has simply run out of room used to be emitted whole, which is how
+   * a subtitle ends on "that could be done" and the next one opens with "in
+   * seconds." Professional practice is to break where the language does: after a
+   * sentence, failing that after a clause, and only failing both at the last
+   * word.
+   *
+   * The back-off is capped at 40 % of the cue. Breaking after the second word of
+   * a full line, because that is where the only comma happened to fall, produces
+   * a two-word flash and pushes everything else into the next cue — worse than
+   * the mid-phrase break it was avoiding.
+   */
+  const flushAtBestBreak = (): void => {
+    if (pending.length < 2) {
+      flush();
+      return;
+    }
+    const floor = Math.max(1, Math.ceil(pending.length * 0.4));
+    let breakAfter = -1;
+    for (let i = pending.length - 2; i >= floor - 1; i--) {
+      const text = pending[i]?.text ?? '';
+      if (SENTENCE_END.test(text)) { breakAfter = i; break; }
+      if (breakAfter === -1 && CLAUSE_END.test(text)) breakAfter = i;
+    }
+    if (breakAfter === -1) {
+      flush();
+      return;
+    }
+    const carried = pending.slice(breakAfter + 1);
+    pending = pending.slice(0, breakAfter + 1);
+    flush();
+    pending = carried;
+  };
+
   for (const segment of segments) {
     const words: TimedWord[] = segment.words.length > 0
       ? segment.words.map((w) => ({ ...w, ...(w.speaker ?? segment.speaker ? { speaker: w.speaker ?? segment.speaker } : {}) }))
@@ -224,10 +308,16 @@ export function resegment(
       if (previous) {
         const gap = word.startMs - previous.endMs;
         const speakerChanged = (previous.speaker ?? null) !== (word.speaker ?? null);
-        const wouldOverrunChars = readableLength([...pending, word].map((w) => w.text).join(' ')) > budget;
+        // The real question, not a character count: can the cue still be DRAWN?
+        const wouldNotFit = !fitsInLines(
+          [...pending, word].map((w) => w.text),
+          opts.maxCharsPerLine,
+          opts.maxLines,
+        );
         const start = pending[0]?.startMs ?? word.startMs;
         const wouldOverrunTime = word.endMs - start > opts.maxDurationMs;
-        if (gap >= opts.gapSplitMs || speakerChanged || wouldOverrunChars || wouldOverrunTime) flush();
+        if (gap >= opts.gapSplitMs || speakerChanged) flush();
+        else if (wouldNotFit || wouldOverrunTime) flushAtBestBreak();
         else if (SENTENCE_END.test(previous.text) && readableLength(pending.map((w) => w.text).join(' ')) >= budget * 0.6) flush();
       }
       pending.push(word);
@@ -239,7 +329,10 @@ export function resegment(
   }
   flush();
 
-  return applyTiming(cues, opts);
+  // Orphans are folded in BEFORE timing, so the merged cue gets one duration
+  // computed from its final text rather than inheriting a floor set for the
+  // fragment it used to be.
+  return applyTiming(mergeOrphans(cues, opts), opts);
 }
 
 /**
@@ -251,6 +344,128 @@ export function resegment(
  * the result re-checked. Doing the gap first lets a later extension close it
  * again.
  */
+/**
+ * Fold an orphan cue back into its neighbour.
+ *
+ * A cue that has run out of room hands its overflow to the next one, and when
+ * the overflow is a single short word the result is a cue that flashes "update."
+ * on screen by itself. Subtitling houses call these orphans and treat them as a
+ * defect; a reader's eye reaches the line before it has anything to read.
+ *
+ * Merging backwards, into the cue before, rather than forwards: the orphan is
+ * the *tail* of the sentence that cue was carrying, so joining it there restores
+ * the phrase. Forwards would staple it to the start of an unrelated one.
+ *
+ * A merge only happens when the result is still legal — it must still draw in
+ * `maxLines` and must not exceed `maxDurationMs`. An orphan that cannot be
+ * absorbed is left alone, because a slightly awkward cue beats an illegal one.
+ */
+function mergeOrphans(cues: readonly Cue[], opts: SegmentationOptions): Cue[] {
+  const ORPHAN_CHARS = Math.floor(opts.maxCharsPerLine * 0.45);
+  const out: Cue[] = [];
+  for (const cue of cues) {
+    const previous = out[out.length - 1];
+    const text = cue.lines.join(' ');
+    const mergeable =
+      previous !== undefined &&
+      readableLength(text) <= ORPHAN_CHARS &&
+      (previous.speaker ?? null) === (cue.speaker ?? null) &&
+      cue.endMs - previous.startMs <= opts.maxDurationMs &&
+      // Never re-join what a real pause separated. A cue boundary that fell on
+      // `gapSplitMs` of silence exists BECAUSE the speaker stopped there, and
+      // stitching it back would put a cue on screen across the pause the viewer
+      // can hear. This runs before `applyTiming`, so the gap here is still the
+      // measured silence between the words and not a value the timing pass
+      // manufactured.
+      cue.startMs - previous.endMs < opts.gapSplitMs;
+
+    if (mergeable) {
+      const words = `${previous.lines.join(' ')} ${text}`.split(/\s+/).filter((w) => w.length > 0);
+      if (fitsInLines(words, opts.maxCharsPerLine, opts.maxLines)) {
+        out[out.length - 1] = {
+          ...previous,
+          endMs: cue.endMs,
+          lines: layoutLines(words, opts.maxCharsPerLine, opts.maxLines),
+        };
+        continue;
+      }
+
+      /*
+        Too big to merge, so rebalance instead.
+
+        The pair is a full cue followed by an orphan, and the two together are
+        one word past what a single cue holds. Splitting them evenly gives two
+        ordinary cues rather than one crammed one and a flash — which is what a
+        subtitler would do by hand.
+
+        The boundary time is interpolated by character count across the pair's
+        combined span. That is an estimate, and it is the honest one available:
+        by this point the cues carry no per-word timings, and the alternative —
+        leaving the orphan alone — is a defect the viewer sees rather than one
+        they could measure.
+      */
+      const rebalanced = splitEvenly(words, opts);
+      if (rebalanced !== null) {
+        const [head, tail] = rebalanced;
+        const span = cue.endMs - previous.startMs;
+        const headShare = readableLength(head.join(' '));
+        const total = headShare + readableLength(tail.join(' ')) || 1;
+        const boundary = previous.startMs + Math.round((headShare / total) * span);
+        out[out.length - 1] = { ...previous, endMs: boundary, lines: head };
+        out.push({ ...cue, startMs: boundary, lines: tail });
+        continue;
+      }
+    }
+    out.push(cue);
+  }
+  return out;
+}
+
+/**
+ * Split words into two legal cues as evenly as possible, or `null` if no split
+ * makes both halves legal.
+ *
+ * Walks outwards from the midpoint so the first legal split found is also the
+ * most balanced one, and prefers a sentence or clause boundary when one sits
+ * within a couple of words of it.
+ */
+function splitEvenly(
+  words: readonly string[],
+  opts: SegmentationOptions,
+): [string[], string[]] | null {
+  const mid = Math.round(words.length / 2);
+  const candidates: number[] = [];
+  for (let offset = 0; offset < words.length; offset++) {
+    for (const index of [mid - offset, mid + offset]) {
+      if (index > 0 && index < words.length && !candidates.includes(index)) candidates.push(index);
+    }
+  }
+  // A linguistic break within two words of the middle is worth taking over a
+  // marginally more even one that lands mid-phrase.
+  candidates.sort((a, b) => {
+    const score = (i: number): number => {
+      const previous = words[i - 1] ?? '';
+      const near = Math.abs(i - mid) <= 2;
+      if (near && SENTENCE_END.test(previous)) return -2;
+      if (near && CLAUSE_END.test(previous)) return -1;
+      return 0;
+    };
+    return score(a) - score(b) || Math.abs(a - mid) - Math.abs(b - mid);
+  });
+
+  for (const index of candidates) {
+    const head = words.slice(0, index);
+    const tail = words.slice(index);
+    if (
+      fitsInLines(head, opts.maxCharsPerLine, opts.maxLines) &&
+      fitsInLines(tail, opts.maxCharsPerLine, opts.maxLines)
+    ) {
+      return [layoutLines(head, opts.maxCharsPerLine, opts.maxLines), layoutLines(tail, opts.maxCharsPerLine, opts.maxLines)];
+    }
+  }
+  return null;
+}
+
 function applyTiming(cues: Cue[], opts: SegmentationOptions): Cue[] {
   const out = cues.map((cue) => ({ ...cue }));
   for (let i = 0; i < out.length; i++) {

@@ -306,3 +306,15 @@ Windows keeps its native frame today (only macOS gets `titleBarStyle:
 'hiddenInset'`, see `createWindow` in `electron/main.ts`), so its buttons are in
 a bar above this row rather than over it. The layout is the one that stays
 correct if that ever changes.
+
+
+## Exporting reveals the file
+
+Both `output:export` and `output:exportMany` finish with
+`shell.showItemInFolder`. A Save dialog tells you the destination and then the
+window closes over it; five minutes later "where did I put that SRT" is a real
+question, and the reveal answers it at the one moment the answer is obvious.
+
+The batch export reveals **once**, pointing at the first file it wrote. Ten
+transcripts would otherwise open ten Finder windows — and since
+`showItemInFolder` selects the item, only the last would be visible anyway.

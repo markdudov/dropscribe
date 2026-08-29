@@ -392,3 +392,83 @@ describe('toSrt / toVtt', () => {
     expect(toVtt([])).toBe('WEBVTT\n\n');
   });
 });
+
+
+describe('resegment — cue length, the Netflix-style rules', () => {
+  /** Words with plausible timings, so the gap rule never fires by accident. */
+  function timed(text: string, msPerWord = 300): { startMs: number; endMs: number; text: string; words: { text: string; startMs: number; endMs: number }[] }[] {
+    const parts = text.split(/\s+/).filter((w) => w.length > 0);
+    const words = parts.map((word, i) => ({ text: word, startMs: i * msPerWord, endMs: (i + 1) * msPerWord - 10 }));
+    return [{ startMs: 0, endMs: parts.length * msPerWord, text, words }];
+  }
+
+  /**
+   * The exact sentence from docs/bugs/0003, verbatim.
+   *
+   * 83 characters, which passed the old `maxCharsPerLine * maxLines` budget of
+   * 84 — and has no legal two-line split at all, so the layout fell through to
+   * a greedy fill and drew three lines.
+   */
+  const THREE_LINE_SENTENCE =
+    'This video is for beginner video editors who waste hours on tasks that could be done';
+
+  it('never draws more lines than maxLines', () => {
+    const cues = resegment(timed(THREE_LINE_SENTENCE), DEFAULT_SEGMENTATION);
+    for (const cue of cues) {
+      expect(cue.lines.length).toBeLessThanOrEqual(DEFAULT_SEGMENTATION.maxLines);
+    }
+  });
+
+  it('never draws a line longer than maxCharsPerLine', () => {
+    const cues = resegment(timed(THREE_LINE_SENTENCE), DEFAULT_SEGMENTATION);
+    for (const cue of cues) {
+      for (const line of cue.lines) {
+        expect(line.length).toBeLessThanOrEqual(DEFAULT_SEGMENTATION.maxCharsPerLine);
+      }
+    }
+  });
+
+  it('keeps every word while splitting to fit', () => {
+    const cues = resegment(timed(THREE_LINE_SENTENCE), DEFAULT_SEGMENTATION);
+    const out = cues.map((c) => c.lines.join(' ')).join(' ').replace(/\s+/g, ' ').trim();
+    expect(out).toBe(THREE_LINE_SENTENCE);
+  });
+
+  it('does not leave a one-word cue at the end', () => {
+    // The orphan: a full cue plus a single trailing word. It is folded back in,
+    // or the pair is rebalanced — either way nothing flashes alone.
+    const text = 'Well that is actually a brand new effect in Premiere since the September update';
+    const cues = resegment(timed(text), DEFAULT_SEGMENTATION);
+    const last = cues[cues.length - 1];
+    expect(last).toBeDefined();
+    if (last !== undefined) {
+      expect(last.lines.join(' ').split(/\s+/).length).toBeGreaterThan(1);
+    }
+  });
+
+  it('will not re-join two cues that a real pause separated', () => {
+    // The guard that a naive orphan merge breaks: the boundary exists because
+    // the speaker stopped, and a cue spanning the silence is a worse defect
+    // than a short one.
+    const segments = [
+      {
+        startMs: 0,
+        endMs: 4000,
+        text: 'one two three four five six seven eight nine ten yes',
+        words: [
+          ...'one two three four five six seven eight nine ten'.split(' ').map((text, i) => ({
+            text,
+            startMs: i * 200,
+            endMs: i * 200 + 150,
+          })),
+          // A two-second silence, well past gapSplitMs, then one short word.
+          { text: 'yes', startMs: 4000, endMs: 4200 },
+        ],
+      },
+    ];
+    const cues = resegment(segments, DEFAULT_SEGMENTATION);
+    expect(cues.length).toBeGreaterThan(1);
+    const last = cues[cues.length - 1];
+    expect(last?.lines.join(' ')).toBe('yes');
+  });
+});

@@ -110,6 +110,8 @@ already spent once.
 | [0001](./0001-cue-ran-past-the-end-of-the-media.md) | A subtitle cue ran past the end of the media | shared/subtitles | `resegment` was never given the media duration to clamp against | 2026-08-29 |
 | [0002](./0002-upload-encoder-was-not-in-the-vendored-ffmpeg.md) | A cloud upload failed instantly with "Encoder not found" | ffmpeg | the vendored macOS ffmpeg has neither `libopus` nor `libmp3lame`, and both rungs of the fallback asked for them | 2026-08-29 |
 
+| [0003](./0003-subtitle-cues-drew-three-lines.md) | Subtitle cues drew three lines, and ended mid-phrase | shared/subtitles | the accumulator counted characters where it had to ask whether the cue could be drawn | 2026-08-29 |
+
 <!--
 Rows go newest-last, so the numbers read in order. One line each:
 | [0001](./0001-some-slug.md) | Timestamps ten times too long | engines/parakeet | `t0`/`t1` are centiseconds, not ms | 2026-09-01 |
