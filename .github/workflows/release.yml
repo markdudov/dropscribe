@@ -124,47 +124,73 @@ jobs:
       # separate verification step: a gate that can be skipped by removing a
       # workflow step is not a gate.
       - name: Package
+        # Every secret arrives under an IN_ name, and the real, magic name is
+        # exported only once it has a value. That is not tidiness.
+        #
+        # A secret that does not exist reaches the step as an environment
+        # variable set to the EMPTY STRING, not as an absent one. So `env:
+        # CSC_LINK: ${{ secrets.CSC_LINK }}` on a repository with no certificate
+        # hands electron-builder `CSC_LINK=''`, which it reads as "a certificate
+        # path was configured", resolves against the working directory, and dies
+        # with `⨯ /Users/runner/work/dropscribe/dropscribe not a file` — in the
+        # ad-hoc branch, which is not supposed to involve a certificate at all.
+        # The branch below was already choosing correctly; the variable simply
+        # travelled past it. Found by a dispatch run, not by reasoning.
         env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          NOTARY_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IN_CSC_LINK: ${{ secrets.CSC_LINK }}
+          IN_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          IN_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          IN_APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          IN_APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          IN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          IN_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          IN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           common=(--mac --arm64 --x64 --publish never)
 
-          if [ -z "${CSC_LINK:-}" ]; then
-            echo '::notice::No CSC_LINK secret, so this build is ad-hoc signed. Users will meet Privacy & Security -> Open Anyway on first launch. See docs/releasing.md for what to add to change that.'
+          if [ -z "${IN_CSC_LINK:-}" ]; then
+            echo '::notice::No CSC_LINK secret, so this build is ad-hoc signed. Users will meet Privacy & Security -> Open Anyway on first launch. docs/releasing.md says what to add to change that.'
             npx electron-builder "${common[@]}"
             exit 0
           fi
 
-          # An empty identity is auto-discovery, and it must reach
-          # electron-builder as an empty string rather than be dropped by the
-          # shell, hence the quoting.
+          export CSC_LINK="$IN_CSC_LINK"
+          # An `if` and not `[ -n … ] && export`, which works only because bash
+          # exempts every command but the last in an && list from `set -e`. It
+          # is a rule that is easy to forget and expensive to rediscover.
+          if [ -n "${IN_CSC_KEY_PASSWORD:-}" ]; then export CSC_KEY_PASSWORD="$IN_CSC_KEY_PASSWORD"; fi
+
+          # Deliberately empty: it overrides the `-` in electron-builder.yml,
+          # which is the right qualifier with no certificate and the wrong one
+          # with a real one, because `-` is matched as a SUBSTRING against the
+          # keychain — it finds a Developer ID whose name happens to contain a
+          # hyphen and misses one that does not. Empty means auto-discovery,
+          # which finds whatever CSC_LINK just imported, whatever it is called.
           signed=(--config.mac.identity=)
 
-          if [ -n "${NOTARY_API_KEY:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ]; then
+          if [ -n "${IN_APPLE_API_KEY:-}" ] && [ -n "${IN_APPLE_API_KEY_ID:-}" ] && [ -n "${IN_APPLE_API_ISSUER:-}" ]; then
             # electron-builder wants a PATH, not the key itself. RUNNER_TEMP is
-            # wiped with the runner; the key never reaches the workspace and so
-            # cannot be picked up by an artifact glob.
-            printf '%s' "$NOTARY_API_KEY" > "$RUNNER_TEMP/notary.p8"
+            # wiped with the runner, and it is outside the workspace, so the key
+            # cannot be swept up by an artifact glob.
+            printf '%s' "$IN_APPLE_API_KEY" > "$RUNNER_TEMP/notary.p8"
             export APPLE_API_KEY="$RUNNER_TEMP/notary.p8"
+            export APPLE_API_KEY_ID="$IN_APPLE_API_KEY_ID"
+            export APPLE_API_ISSUER="$IN_APPLE_API_ISSUER"
             echo '::notice::Signing with the Developer ID and notarizing with the App Store Connect key.'
             npx electron-builder "${common[@]}" "${signed[@]}" --config.mac.notarize=true
-          elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+          elif [ -n "${IN_APPLE_ID:-}" ] && [ -n "${IN_APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${IN_APPLE_TEAM_ID:-}" ]; then
+            export APPLE_ID="$IN_APPLE_ID"
+            export APPLE_APP_SPECIFIC_PASSWORD="$IN_APPLE_APP_SPECIFIC_PASSWORD"
+            export APPLE_TEAM_ID="$IN_APPLE_TEAM_ID"
             echo '::notice::Signing with the Developer ID and notarizing with the app-specific password.'
             npx electron-builder "${common[@]}" "${signed[@]}" --config.mac.notarize=true
           else
             # A warning and not an error, because a half-finished signing setup
             # must not be the reason a release does not go out: this build is
             # still usable, and refusing to produce it would help nobody. It is
-            # loud because the failure is otherwise invisible — the build says
-            # "signed", and users see the identical dialog they saw before.
+            # loud because the failure is otherwise invisible — the log says
+            # "signing", and users meet the identical dialog they met before.
             echo '::warning::CSC_LINK is set but no notarization credentials are. This build is signed and NOT notarized, which looks exactly the same to a user as ad-hoc: macOS 15 shows the same dialog for both. Add either APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER, or APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID.'
             npx electron-builder "${common[@]}" "${signed[@]}"
           fi

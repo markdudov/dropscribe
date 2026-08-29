@@ -169,6 +169,15 @@ it. The only thing that removes it is notarization.
 The workflow is already written for it. It branches on what secrets exist and
 needs no edit — add the secrets and the next tag comes out notarized.
 
+Every secret reaches the step under an `IN_` name and is re-exported under its
+real one only when it has a value. A secret that does not exist arrives as an
+environment variable set to the **empty string**, not as an absent one, and
+`CSC_LINK=''` is read by electron-builder as "a certificate path was
+configured" — it resolves it against the working directory and dies with
+`not a file`, in the ad-hoc branch, which is not supposed to involve a
+certificate at all. The branch was choosing correctly; the variable travelled
+past it.
+
 **Signing only is not worth doing.** A Developer ID without a notarization
 ticket buys attribution and nothing else: macOS 15 shows a user the identical
 dialog it shows for ad-hoc. Do both or neither. The workflow says so with a loud
