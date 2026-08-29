@@ -150,7 +150,18 @@ jobs:
           common=(--mac --arm64 --x64 --publish never)
 
           if [ -z "${IN_CSC_LINK:-}" ]; then
-            echo '::notice::No CSC_LINK secret, so this build is ad-hoc signed. Users will meet Privacy & Security -> Open Anyway on first launch. docs/releasing.md says what to add to change that.'
+            # A tag is a release, and RELEASE_NOTES.md tells the reader the
+            # macOS build is notarized. Producing an ad-hoc one for a tag would
+            # ship that sentence attached to a dmg that raises the very dialog
+            # it says will not appear — a worse outcome than no release, because
+            # the user reads the note, meets the warning, and correctly stops
+            # trusting the page. A dispatch run stays allowed: it is a build
+            # test, and nothing it makes reaches anybody.
+            if [ "${GITHUB_REF:-}" != "${GITHUB_REF#refs/tags/v}" ]; then
+              echo "::error::Refusing to build $GITHUB_REF without a signing certificate. The release notes say the macOS build is notarized, and this one would not be. Add CSC_LINK and CSC_KEY_PASSWORD, or change the notes before tagging — docs/releasing.md has both sides."
+              exit 1
+            fi
+            echo '::notice::No CSC_LINK secret, so this dispatch build is ad-hoc signed. A tag would be refused; see the check just above.'
             npx electron-builder "${common[@]}"
             exit 0
           fi
@@ -287,17 +298,21 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for phrase in 'not signed' 'Open Anyway' 'Run anyway' 'SmartScreen'; do
+          for phrase in 'SmartScreen' 'Run anyway'; do
             if ! grep -qF "$phrase" RELEASE_NOTES.md; then
               echo "::error::RELEASE_NOTES.md no longer mentions '$phrase'"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo 'These builds are unsigned. The release body has to say so, and has to tell'
-            echo 'macOS users about right-click → Open / System Settings → Privacy & Security →'
-            echo 'Open Anyway, and Windows users about SmartScreen → More info → Run anyway.'
-            echo 'docs/releasing.md carries the wording to paste back.'
+            echo 'The Windows installer is unsigned. The release body has to say so, and has to'
+            echo 'tell users about SmartScreen → More info → Run anyway. docs/releasing.md'
+            echo 'carries the wording to paste back.'
+            echo
+            echo 'The macOS phrases were dropped from this check on the day the Developer ID'
+            echo 'reached CI, because the notes stopped claiming a warning that no longer'
+            echo 'happens. What guards THAT direction is not this step — it is the macOS job'
+            echo 'refusing to build a tag ad-hoc at all.'
             exit 1
           fi
 

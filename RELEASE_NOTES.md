@@ -1,4 +1,4 @@
-# DropScribe 0.1.0
+# DropScribe 0.1.1
 
 Drop an audio or video file on the window and get a transcript back. DropScribe
 runs Whisper large-v3, Whisper large-v3-turbo and NVIDIA's Parakeet TDT 0.6B v3
@@ -12,26 +12,21 @@ individually, and can be cancelled at any point.
 
 macOS and Windows. MIT licensed.
 
-## The app is not signed yet
+## macOS is signed and notarized; Windows is not
 
-There is no Apple Developer certificate and no Windows code-signing certificate
-behind this build, so both operating systems will treat it as an unknown app the
-first time you open it.
+The macOS builds carry an Apple Developer ID signature and a notarization ticket
+from Apple, so the dmg opens with a double-click like anything else you install.
 
-On macOS, double-clicking will be refused, with a message about Apple not being
-able to verify the app. Open **System Settings → Privacy & Security**, scroll
-down to the line about DropScribe being blocked, and choose **Open Anyway** —
-once, and never again for that copy. On macOS 14 and earlier you can instead
-right-click the app in Finder and choose **Open**; that shortcut stopped working
-in macOS 15, which is why it is not the first instruction here.
+The Windows installer is a different story: an Authenticode certificate is a
+separate purchase and this project has not made it yet. SmartScreen will show
+the blue "Windows protected your PC" panel with no publisher name — click
+**More info**, then **Run anyway**. That warning is about the missing signature
+rather than about anything the installer was caught doing, which is also exactly
+what a bad actor would write here; the source is public, so if you would rather
+not trust a binary from a stranger, you can build it yourself.
 
-On Windows, SmartScreen will show a blue "Windows protected your PC" box. Click
-**More info**, then **Run anyway**.
-
-Both warnings are about the missing signature, not about anything the app was
-caught doing — but that is exactly what a bad actor would also write here. The
-source is public, so if you would rather not trust a binary from a stranger, you
-can build it yourself.
+Reputation accrues per binary on Windows, so this does not improve as the
+project ages — every release starts from zero until there is a certificate.
 
 ## The first transcription downloads a model
 
@@ -57,11 +52,24 @@ knows 25 European languages, where Whisper will attempt any of 99.
 
 The cloud providers need no download at all — just a key.
 
-## What 0.1.0 is
+## Supporting the project
 
-A first public release. It is unsigned, it does not update itself, and it has
-not yet been run on every combination of hardware and file that exists. There
-will be rough edges, and finding them is the point of putting it out.
+DropScribe is free and MIT licensed and stays that way — no paid tier, nothing
+held back, nothing phoning home. Keeping the macOS builds signed and notarized
+costs money, though, and so does the time. If it saves you work and you would
+like to chip in: [PayPal](https://www.paypal.com/paypalme/markdudov) or
+[Revolut](https://revolut.me/markdudov). Entirely optional — a good bug report
+is worth as much.
+
+## What 0.1.1 is
+
+An early public release. It does not update itself, and it has not yet been run
+on every combination of hardware and file that exists. There will be rough
+edges, and finding them is the point of putting it out.
+
+0.1.1 changes nothing about how the app transcribes. What it changes is that the
+macOS builds are now signed and notarized, so they open without a fight, and
+there is a way to support the project if you want to.
 
 To get a new version, come back to the Releases page and download it; nothing in
 the app will tell you one exists.
