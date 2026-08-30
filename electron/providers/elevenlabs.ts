@@ -422,9 +422,14 @@ async function fetchModelIds(parent: AbortSignal): Promise<string[] | null> {
 }
 
 /** Never throws: a model list is a convenience, and the fallback is always right enough to transcribe with. */
-async function loadModels(signal: AbortSignal): Promise<ProviderModel[]> {
+async function loadModels(signal: AbortSignal, force = false): Promise<ProviderModel[]> {
   const cached = modelCache;
-  if (cached !== null && Date.now() - cached.at < MODEL_CACHE_MS) return cached.models;
+  // `force` is the Refresh models button. Without it that button did nothing at
+  // all for six hours after the first successful fetch: it went through
+  // `listModels`, hit this cache, and returned the same list it already had, so
+  // a model ElevenLabs added this morning stayed invisible until the afternoon
+  // with no way to ask again.
+  if (!force && cached !== null && Date.now() - cached.at < MODEL_CACHE_MS) return cached.models;
   const ids = await fetchModelIds(signal);
   const models = toModelList(ids ?? FALLBACK_MODEL_IDS);
   // Only a real answer is cached. Caching the fallback would hide a recovered
@@ -825,8 +830,12 @@ export const elevenLabsAdapter: ProviderAdapter = {
 
   // The spec document is public, so the key is genuinely unused here. It stays
   // in the signature because every other provider needs one.
-  async listModels(_apiKey: string, signal: AbortSignal): Promise<ProviderModel[]> {
-    return loadModels(signal);
+  async listModels(
+    _apiKey: string,
+    signal: AbortSignal,
+    options?: { force?: boolean },
+  ): Promise<ProviderModel[]> {
+    return loadModels(signal, options?.force ?? false);
   },
 
   async transcribe(request: CloudRequest, ctx: CloudContext): Promise<Transcript> {

@@ -61,7 +61,11 @@ export interface ProviderAdapter {
    * caller is a button, and a button has nowhere to put an exception.
    */
   testKey(apiKey: string, signal: AbortSignal): Promise<KeyTestResult>;
-  listModels(apiKey: string, signal: AbortSignal): Promise<ProviderModel[]>;
+  /**
+   * `force` is what the Refresh models button means: go and ask, do not answer
+   * from a cache. An adapter that keeps no cache may ignore it — most do.
+   */
+  listModels(apiKey: string, signal: AbortSignal, options?: { force?: boolean }): Promise<ProviderModel[]>;
   transcribe(request: CloudRequest, ctx: CloudContext): Promise<Transcript>;
 }
 

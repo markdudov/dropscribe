@@ -118,6 +118,7 @@ already spent once.
 | [0008](./0008-scripts-without-spaces-got-one-word-per-sentence.md) | Chinese, Japanese and Thai got one "word" per sentence | engines/whisper-json | the token merge looked for a leading space, and those scripts have none between words | 2026-08-30 |
 | [0009](./0009-the-floor-outranked-the-encoding.md) | The upload ceiling made the upload bigger | ffmpeg | `MIN_UPLOAD_KBPS` was applied after the clamp, so it outranked an encoding configured below it | 2026-08-30 |
 | [0010](./0010-the-layout-search-enumerated-everything.md) | Six lines per subtitle froze the app for minutes | shared/subtitles | `balancedSplit` enumerated every partition and checked the line-width constraint only at the leaves | 2026-08-30 |
+| [0011](./0011-three-small-ones-the-review-turned-up.md) | A mojibake CSV, a console window, a button that did nothing | exports, engines/parakeet, providers/elevenlabs | a missing BOM, a missing `windowsHide`, and a cache consulted on an explicit refresh | 2026-08-30 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:

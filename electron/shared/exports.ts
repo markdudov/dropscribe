@@ -242,7 +242,13 @@ function csvField(value: string): string {
  * entire file into row 1.
  */
 function toCsv(transcript: Transcript): string {
-  const rows: string[] = [CSV_HEADER];
+  // A byte-order mark, for the same reason as the CRLF above. Excel decodes a
+  // UTF-8 CSV without one as the system's legacy code page, so every non-ASCII
+  // character arrives as mojibake — "Здравей" opens as "Ð—Ð´Ñ€Ð°Ð²ÐµÐ¹", which
+  // for a transcript in anything but English is most of the file. Three bytes,
+  // skipped by every CSV parser worth using, and the only thing that makes the
+  // file open correctly in the program this format was shaped around.
+  const rows: string[] = [`\ufeff${CSV_HEADER}`];
   for (const segment of transcript.segments) {
     const fields = [
       String(segment.startMs),

@@ -68,7 +68,14 @@ async function run(request: LocalRunRequest, ctx: LocalRunContext): Promise<Tran
   let stdout = '';
   let stderrCarry = '';
 
-  const child = spawn(binaryPath('parakeet-cli'), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // `windowsHide`, as in whisper-cpp.ts and ffmpeg.ts. Without it Windows gives
+  // a GUI process's console child its own window, so every Parakeet job opens a
+  // black console over the app for as long as it runs. The other two spawns in
+  // this codebase set it; this one was simply missed.
+  const child = spawn(binaryPath('parakeet-cli'), args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
 
   /**
    * Parakeet prints no progress at all, so the bar is driven by elapsed time

@@ -214,7 +214,9 @@ describe('renderTranscript — csv', () => {
 
   it('quotes per RFC 4180 and separates rows with CRLF', () => {
     const expected =
-      'start_ms,end_ms,start,end,speaker,text\r\n' +
+      // The BOM is part of the contract — see the Excel block at the end of
+      // this file. Everything after it is unchanged.
+      '\ufeffstart_ms,end_ms,start,end,speaker,text\r\n' +
       '0,2000,00:00:00.000,00:00:02.000,Ann,"He said ""hello, world"" today"\r\n' +
       '2500,5000,00:00:02.500,00:00:05.000,,Line one line two\r\n' +
       '5100,6000,00:00:05.100,00:00:06.000,"Ann ""The Voice"", Jr.\nEsq.",Fin.\r\n';
@@ -281,5 +283,49 @@ describe('exportFileName', () => {
     expect(exportFileName('', 'srt')).toBe('transcript.srt');
     expect(exportFileName('   ', 'srt')).toBe('transcript.srt');
     expect(exportFileName('/Users/mark/', 'srt')).toBe('transcript.srt');
+  });
+});
+
+/*
+ * ── CSV and Excel ─────────────────────────────────────────────────────────
+ *
+ * `toCsv`'s own comment commits the format to Excel: rows are joined with CRLF
+ * "which RFC 4180 mandates and — the reason that actually matters — which Excel
+ * requires. Handed bare LF, Excel drops the entire file into row 1."
+ *
+ * Excel applies the same literalism to the encoding. Opening a UTF-8 CSV with
+ * no byte-order mark, it decodes the bytes as the system's legacy code page, so
+ * every non-ASCII character in the transcript arrives as mojibake — "Здравей"
+ * becomes "Ð—Ð´Ñ€Ð°Ð²ÐµÐ¹". For an app whose author transcribes Bulgarian, that
+ * is most of the output.
+ *
+ * A BOM is three bytes, every CSV parser worth using skips it, and it is the
+ * only thing that makes the file open correctly in the program the format was
+ * shaped around.
+ */
+describe('CSV for the program the format was shaped around', () => {
+  const transcript: Transcript = {
+    ...TRANSCRIPT,
+    language: 'bg',
+    durationMs: 2_000,
+    segments: [{ startMs: 0, endMs: 2_000, text: 'Здравей, свят', words: [] }],
+  };
+
+  it('starts with a byte-order mark', () => {
+    expect(renderTranscript(transcript, 'csv', OPTIONS).startsWith('﻿')).toBe(true);
+  });
+
+  it('still has the header as its first line, and CRLF rows', () => {
+    const csv = renderTranscript(transcript, 'csv', OPTIONS);
+    expect(csv.slice(1).split('\r\n')[0]).toBe('start_ms,end_ms,start,end,speaker,text');
+    expect(csv).toContain('\r\n');
+  });
+
+  it('does not put a mark in any other format', () => {
+    // The shared TRANSCRIPT rather than the local fixture: Markdown renders
+    // the engine banner, so it needs a transcript with a `source`.
+    for (const format of ['txt', 'md', 'srt', 'vtt', 'json'] as const) {
+      expect(renderTranscript(TRANSCRIPT, format, OPTIONS).startsWith('﻿')).toBe(false);
+    }
   });
 });

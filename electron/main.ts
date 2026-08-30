@@ -972,9 +972,13 @@ function registerIpc(): void {
 
   handle('providers:refreshModels', async (_event, rawId) => {
     const id = requireProviderId(rawId);
+    // `force`, because this handler exists for one reason: the user pressed a
+    // button that says Refresh. Answering it from a cache is the one thing it
+    // must not do.
     const models = await adapterFor(id).listModels(
       requireStoredKey(id),
       AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      { force: true },
     );
     saveProviderRecord(id, { models });
     return models;
