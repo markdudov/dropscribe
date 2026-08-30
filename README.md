@@ -4,21 +4,27 @@
 desktop app for macOS and Windows that can run entirely on your own machine —
 no account, no subscription, and nothing leaving the computer.
 
-<video src="https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4"
-       poster="https://github.com/markdudov/dropscribe/raw/main/docs/demo-poster.png"
-       controls muted playsinline width="100%"></video>
-
 <!--
-  The <video> tag above is what GitHub renders on the repository page. Some
-  places that show a README — npm, a few mirrors, an editor's preview — render
-  no video at all, so the line below is the fallback: a still that always
-  appears, linking to the file itself.
+  An animated GIF, not a <video> tag.
+
+  GitHub's markdown sanitiser strips <video> outright — checked by asking the
+  API for the rendered HTML, where only the fallback <img> survived — so a
+  <video> here is a still image that downloads a file when clicked, which is
+  not a demo. The one way to get a real inline player is a
+  github.com/user-attachments URL, and those exist only for files uploaded
+  through the web interface by hand.
+
+  A GIF plays by itself, everywhere, with nothing to click. It starts after the
+  file picker closes, so the front page shows the app rather than the contents
+  of somebody's Downloads folder, and runs at 6x because the point is the shape
+  of the flow, not the wait.
 -->
 
-[![DropScribe: drop a file, watch the queue, export the transcript](docs/demo-poster.png)](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4)
+![DropScribe: a file in the queue, transcribing locally, then exported](docs/demo.gif)
 
-*86 seconds: a file dropped in, the queue working, a cloud key tested, and the
-transcript exported.*
+*The queue working, a cloud key tested, and the transcript exported — sped up.
+[The full 86 seconds](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4),
+at normal speed.*
 
 ---
 
