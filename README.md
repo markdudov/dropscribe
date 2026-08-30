@@ -5,25 +5,24 @@ desktop app for macOS and Windows that can run entirely on your own machine —
 no account, no subscription, and nothing leaving the computer.
 
 <!--
-  An animated GIF, not a <video> tag.
+  A bare github.com/user-attachments URL on its own line. GitHub turns that into
+  a real player — poster frame, play button, scrubber, fullscreen.
 
-  GitHub's markdown sanitiser strips <video> outright — checked by asking the
-  API for the rendered HTML, where only the fallback <img> survived — so a
-  <video> here is a still image that downloads a file when clicked, which is not
-  a demo. The one way to get a real inline player is a
-  github.com/user-attachments URL, and those exist only for a file uploaded
-  through the web interface and then POSTED; an upload left in an unsubmitted
-  draft answers 404 to everyone but its author, which was measured rather than
-  assumed.
+  Not a <video> tag pointing at a file in this repository: the markdown
+  sanitiser strips <video> outright, which was measured by asking the API for
+  the rendered HTML and finding only the fallback <img> left behind. And not a
+  GIF: 79 seconds of one is 7.5 MB the visitor downloads before anything moves,
+  it cannot be paused or scrubbed, and it restarts from the beginning whenever
+  it scrolls out of view — which is what makes a long GIF feel broken rather
+  than long.
 
-  So: the whole recording, at actual speed, as a GIF. 720px and 8 fps rather
-  than 800 and 10 — that is 7.5 MB instead of 11, and the interface is still
-  legible down to the elapsed-time counters. It starts at 7.5s, after the file
-  picker closes, so the front page shows the app rather than the contents of
-  somebody's Downloads folder.
+  The URL only exists because the file was uploaded through a comment box, and
+  it only serves publicly because that comment was posted (issue #18, closed —
+  the asset outlives it). An upload left in an unsubmitted draft answers 404 to
+  everyone but its author.
 -->
 
-![DropScribe: a file transcribed locally, a cloud key added, and the transcript exported](docs/demo.gif)
+https://github.com/user-attachments/assets/15ea380e-c65a-490c-a600-c9c180e5aea8
 
 *The whole thing, at the speed it actually happens: a file transcribed on the
 machine, the transcript opened and exported, a Deepgram key added and tested,
