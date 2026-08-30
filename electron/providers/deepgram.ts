@@ -25,7 +25,7 @@ import type { KeyTestResult, ProviderModel } from '../shared/providers';
 import type { Segment, Transcript, Word } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
 import type { CloudContext, CloudRequest, ProviderAdapter } from './types';
-import { abortableFetch, assertOk, fileToBlob, readErrorMessage } from './types';
+import { abortableFetch, assertOk, fileToBlob } from './types';
 
 /**
  * Deepgram also serves api.eu.deepgram.com and api.au.deepgram.com on identical
@@ -891,10 +891,23 @@ async function testKey(apiKey: string, signal: AbortSignal): Promise<KeyTestResu
   }
 
   if (!response.ok) {
-    const detail = await readErrorMessage(response);
+    // `readDeepgramError`, not `readErrorMessage`. The latter is synchronous and
+    // takes an already-parsed body; handed a `Response` it sees a non-null
+    // object, finds none of `detail`/`err_msg`/`message`/`error` on it, and
+    // returns null — which the template then rendered as the literal word
+    // "null". Measured against Deepgram's own 429 dialect, the user was shown:
+    //
+    //   Deepgram could not check the key (HTTP 429). null
+    //
+    // while `{"err_code":"RATE_LIMIT_EXCEEDED","err_msg":"Too many requests."}`
+    // sat unread in a stream nobody consumed.
+    const failure = await readDeepgramError(response);
+    const detail = failure.message ?? '';
     return {
       ok: false,
-      message: `Deepgram could not check the key (HTTP ${response.status}). ${detail}`.trim(),
+      message: detail.length > 0
+        ? `Deepgram could not check the key (HTTP ${response.status}). ${detail}`
+        : `Deepgram could not check the key (HTTP ${response.status}). Try again in a moment.`,
     };
   }
 

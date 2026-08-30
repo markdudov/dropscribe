@@ -121,6 +121,7 @@ already spent once.
 | [0011](./0011-three-small-ones-the-review-turned-up.md) | A mojibake CSV, a console window, a button that did nothing | exports, engines/parakeet, providers/elevenlabs | a missing BOM, a missing `windowsHide`, and a cache consulted on an explicit refresh | 2026-08-30 |
 | [0012](./0012-a-five-minute-ceiling-nobody-asked-for.md) | Long cloud jobs failed after the provider had done the work and billed it | providers | undici's default 300 s `headersTimeout`, which no adapter asked for and one comment explicitly disclaimed | 2026-08-30 |
 | [0013](./0013-try-again-on-a-file-with-no-audio.md) | Try again was offered on a file with no audio track | ffmpeg, transcribe/queue | the error was a plain `Error`, so it fell into the branch that marks unknown failures retryable | 2026-08-30 |
+| [0014](./0014-four-in-the-main-process.md) | A "null" in an error, a key with a dash, a cache ahead of its write, and a Remove that came back | providers, services/credentials, main | a helper handed a `Response`, a Latin-1 header, a cache returned by reference, and no ordering between save and clear | 2026-08-30 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:

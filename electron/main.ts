@@ -83,6 +83,28 @@ import { createQueue } from './transcribe/queue';
  * main chunk and would put a URL the build pipeline controls into a call that
  * opens the user's browser. Two string literals are not worth that.
  */
+/**
+ * How many times each provider's key has been removed.
+ *
+ * `providers:saveKey` tests the key over the network before storing it, which
+ * takes as long as the provider takes — up to the thirty-second timeout. A
+ * `providers:clearKey` that lands inside that window used to be undone: the
+ * clear removed the key and the record, then the save came back from the
+ * network and wrote the key it had been asked about. The user pressed Remove,
+ * watched the row empty, and found the key back a moment later.
+ *
+ * Reproduced against the real handlers: after the clear, `hasKey` was false and
+ * `credentials.json` was gone; when the save resumed, `hasKey` was true again
+ * and the file was back on disk.
+ *
+ * An epoch rather than a promise chain, deliberately. Serialising would make
+ * Remove wait behind a save the user has already abandoned — up to half a
+ * minute of a button that does nothing. Last INTENT should win, not last
+ * completion, and a clear that arrives after a save started is the newer
+ * intent.
+ */
+const keyRemovals = new Map<ProviderId, number>();
+
 const REPO_URL = 'https://github.com/markdudov/dropscribe';
 const ISSUES_URL = `${REPO_URL}/issues`;
 /*
@@ -933,12 +955,19 @@ function registerIpc(): void {
     const { key } = read;
     const adapter = adapterFor(id);
 
+    const removalsBefore = keyRemovals.get(id) ?? 0;
     const result = await adapter.testKey(key, AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS));
     // **A key that failed its test never reaches the keychain.** Storing first
     // and testing after is the ordering that leaves a typo in the OS keystore
     // forever, silently failing every job the user starts until they think to
     // re-open Settings and look at a red badge they have learned to ignore.
     if (!result.ok) return result;
+
+    // And a key the user removed while we were asking about it never reaches it
+    // either. See `keyRemovals`.
+    if ((keyRemovals.get(id) ?? 0) !== removalsBefore) {
+      return { ok: false, message: 'That key was removed while it was being checked, so it was not saved.' };
+    }
 
     setKey(id, key);
 
@@ -964,6 +993,8 @@ function registerIpc(): void {
 
   handle('providers:clearKey', async (_event, rawId) => {
     const id = requireProviderId(rawId);
+    // Before the work, so a save already waiting on the network sees it.
+    keyRemovals.set(id, (keyRemovals.get(id) ?? 0) + 1);
     clearKey(id);
     // The cached models and the green "connected" result go with it. Leaving
     // them would make the row look configured when there is no key behind it.

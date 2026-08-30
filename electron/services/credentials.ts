@@ -188,30 +188,51 @@ export function setKey(id: ProviderId, key: string): void {
 
   requireEncryption();
 
-  const file = readCipherFile();
-  file.version = FILE_VERSION;
-  file.keys[id] = safeStorage.encryptString(trimmed).toString('base64');
-  writeCipherFile(file);
+  // A COPY, not the object `readCipherFile` returns.
+  //
+  // That function ends `cipherCache = file; return file` — it hands back the
+  // cache itself. Mutating it in place therefore updated the cache before the
+  // write was attempted, and `writeCipherFile`'s own `cipherCache = file` after
+  // the rename was re-assigning the same reference and could protect nothing.
+  // A write that failed — a full disk, a read-only directory — left the app
+  // reporting the key as stored, and every job using it, until a restart read
+  // the truth back off disk.
+  //
+  // Building the next state separately makes the rename in `writeCipherFile`
+  // the only commit point, which is what it was always supposed to be.
+  const current = readCipherFile();
+  const next: CredentialsFile = { version: FILE_VERSION, keys: { ...current.keys } };
+  next.keys[id] = safeStorage.encryptString(trimmed).toString('base64');
+  writeCipherFile(next);
   plaintextCache.set(id, trimmed);
 }
 
 export function clearKey(id: ProviderId): void {
-  plaintextCache.delete(id);
+  // Same copy-then-commit as `setKey`, and the plaintext eviction waits with
+  // it. Removing the key from memory first meant a failed write left the app
+  // showing no key while the ciphertext was still on disk — "I removed it" that
+  // comes back on the next launch.
+  const current = readCipherFile();
+  if (current.keys[id] === undefined) {
+    plaintextCache.delete(id);
+    return;
+  }
 
-  const file = readCipherFile();
-  if (file.keys[id] === undefined) return;
-  delete file.keys[id];
+  const next: CredentialsFile = { version: current.version, keys: { ...current.keys } };
+  delete next.keys[id];
 
   // An empty keys map means the file has nothing left to protect. Removing it
   // is tidier than leaving a `{"version":1,"keys":{}}` husk behind, and it
   // makes "I cleared my keys" true on disk as well as in the UI.
-  if (Object.keys(file.keys).length === 0) {
+  if (Object.keys(next.keys).length === 0) {
     rmSync(credentialsPath(), { force: true });
-    cipherCache = file;
+    cipherCache = next;
+    plaintextCache.delete(id);
     return;
   }
 
-  writeCipherFile(file);
+  writeCipherFile(next);
+  plaintextCache.delete(id);
 }
 
 export function hasKey(id: ProviderId): boolean {

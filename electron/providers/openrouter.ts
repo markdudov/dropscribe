@@ -128,6 +128,50 @@ interface HttpResult {
  * every DropScribe request indistinguishable from a scripted one, which is how
  * traffic ends up rate-limited more aggressively.
  */
+/**
+ * The first character of a key that cannot be put in an HTTP header, or `null`.
+ *
+ * Header values are Latin-1 ByteStrings. A key carrying anything outside that —
+ * an en dash where a hyphen was meant, a Cyrillic а that looks exactly like an
+ * a, a smart quote, a stray newline from a rich-text copy — makes `fetch` throw
+ * a bare `TypeError` while it is *building the headers*, before a socket is
+ * opened. `httpJson`'s catch cannot tell that from a dead network, so it
+ * reported:
+ *
+ *   Could not reach OpenRouter. Check your internet connection.
+ *
+ * to somebody whose connection was fine and whose key had one wrong character
+ * in it. They then check their router.
+ *
+ * Measured: an en dash threw at index 9, a Cyrillic а at index 79, an emoji and
+ * a newline likewise. `é` and a non-breaking space are Latin-1 and pass, which
+ * is correct — the transport accepts them.
+ */
+function unusableKeyCharacter(apiKey: string): { index: number; character: string } | null {
+  for (let index = 0; index < apiKey.length; index++) {
+    const code = apiKey.charCodeAt(index);
+    // Latin-1 covers 0..255, but a header value may not carry a control
+    // character either — a newline would be a header injection if it were let
+    // through, and `fetch` refuses it separately.
+    if (code > 255 || code === 0x0a || code === 0x0d) {
+      return { index, character: apiKey.charAt(index) };
+    }
+  }
+  return null;
+}
+
+/** The sentence for a key `unusableKeyCharacter` rejected. */
+function badCharacterMessage(found: { index: number; character: string }): string {
+  const shown = found.character === '\n' || found.character === '\r'
+    ? 'a line break'
+    : `“${found.character}”`;
+  return (
+    `This key contains ${shown} at position ${found.index + 1}, which cannot go in an HTTP header. ` +
+    'That usually means it was copied from somewhere that rewrote a hyphen as a dash or a quote as ' +
+    'a smart quote — copy it again from openrouter.ai/keys as plain text.'
+  );
+}
+
 function authHeaders(apiKey: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey}`,
@@ -717,6 +761,11 @@ export const openrouterAdapter: ProviderAdapter = {
   id: 'openrouter',
 
   async testKey(apiKey: string, signal: AbortSignal): Promise<KeyTestResult> {
+    // Before the request, because the failure happens while `fetch` builds the
+    // headers and is indistinguishable from a network fault by then.
+    const bad = unusableKeyCharacter(apiKey);
+    if (bad !== null) return { ok: false, message: badCharacterMessage(bad) };
+
     const result = await fetchKeyInfo(apiKey, signal);
 
     if (!result.ok) {
