@@ -1,4 +1,4 @@
-# DropScribe 0.1.1
+# DropScribe 0.1.2
 
 Drop an audio or video file on the window and get a transcript back. DropScribe
 runs Whisper large-v3, Whisper large-v3-turbo and NVIDIA's Parakeet TDT 0.6B v3
@@ -61,15 +61,60 @@ like to chip in: [PayPal](https://www.paypal.com/paypalme/markdudov) or
 [Revolut](https://revolut.me/markdudov). Entirely optional — a good bug report
 is worth as much.
 
-## What 0.1.1 is
+## What 0.1.2 fixes
+
+Everything below was found by reviewing the app rather than by anyone hitting
+it, and every one of them is written up in full under `docs/bugs/`.
+
+**Chinese, Japanese and Thai now get usable subtitles at all.** Those scripts
+put no spaces between words, and the token merge was joining every character
+between two full stops into a single "word" — so a sentence became one cue on
+one line, at twice the configured width, that vanished six seconds before the
+speaker did. Measured on 83 characters of speech: one cue before, two properly
+laid-out ones after.
+
+**Long cloud jobs no longer fail after the provider has already charged you.**
+Node's HTTP client applies a five-minute ceiling on how long a provider may take
+to answer, which nothing in the app asked for and one comment in it explicitly
+disclaimed. A provider that transcribes a long recording and answers after five
+minutes had its connection destroyed, and you were told to check your internet —
+after the work was done and billed, and **Try again** billed it again. Requests
+now go through a transport with no such ceiling.
+
+**Opening a file from Finder works.** Downloading a model and choosing it never
+wrote that choice down, so double-clicking a video — or Open With, or a file on
+the command line — met a dialog saying DropScribe had nothing to transcribe with
+and telling you to download a model you already had.
+
+**Setting six lines per subtitle no longer freezes the app.** The line-balancing
+search enumerated every possible way of splitting a cue and only then checked
+whether the lines fitted. At the default two lines that is instant; at six it
+was 842 ms for a single cue, and minutes of an unresponsive window for a long
+recording.
+
+**Subtitle timing is honest again.** Repetitive audio makes Whisper stack a run
+of words on one instant, and cues built from those came out one millisecond
+long, in pairs sharing an interval. A cue cut short by the end of the file now
+starts earlier instead of flashing. And a cue can no longer draw a third line.
+
+**Also:** a transcript CSV opens correctly in Excel instead of as mojibake; the
+folder for transcripts can only be set through the picker; the auto-written
+subtitle file now uses the settings you have rather than the ones you had when
+the job started; an export that could not be written says so instead of failing
+silently; a number typed in Settings survives pressing Escape; **Refresh models**
+refreshes; a key with a stray dash in it says so rather than blaming your
+internet; **Try again** is greyed out on a file with no audio track; Parakeet no
+longer opens a console window on Windows; and an interrupted job stops leaving
+megabytes in the system temp folder that nothing ever cleared.
+
+Nothing about how the app is used has changed, and no setting was renamed or
+removed.
+
+## What 0.1.2 is
 
 An early public release. It does not update itself, and it has not yet been run
 on every combination of hardware and file that exists. There will be rough
 edges, and finding them is the point of putting it out.
-
-0.1.1 changes nothing about how the app transcribes. What it changes is that the
-macOS builds are now signed and notarized, so they open without a fight, and
-there is a way to support the project if you want to.
 
 To get a new version, come back to the Releases page and download it; nothing in
 the app will tell you one exists.

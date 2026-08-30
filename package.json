@@ -1,7 +1,7 @@
 {
   "name": "dropscribe",
   "productName": "DropScribe",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Drag-and-drop transcription for macOS and Windows. Local Whisper and Parakeet, or your own DeepInfra / Deepgram / ElevenLabs key.",
   "main": "out/main/index.js",
   "type": "module",
