@@ -664,3 +664,63 @@ describe('a cue whose words were carried over by a linguistic break', () => {
     expect(cues.flatMap((cue) => cue.lines.join(' ').split(' '))).toEqual(texts);
   });
 });
+
+/*
+ * ── The layout search that enumerates everything ──────────────────────────
+ *
+ * `balancedSplit` walks every way of cutting a cue's words into exactly n
+ * contiguous lines — C(words-1, n-1) of them — and only checks the
+ * characters-per-line constraint at the leaves. `layoutLines` calls it for
+ * n = 2..maxLines.
+ *
+ * The comment above it says "a cue is a couple of dozen words at most", which
+ * is true at the default maxLines of 2, where the search is linear. The Output
+ * tab offers "Lines per subtitle" up to 6 and "Longest on screen" up to 30 s.
+ * Raise both and a cue holds enough words to genuinely need six lines, so every
+ * n fails and n = 6 enumerates C(41,5) ≈ 750 000 partitions, allocating an
+ * array at each node.
+ *
+ * Measured before the fix, on an M-series Mac:
+ *
+ *   maxLines=2, 14 words  ->     0.1 ms
+ *   maxLines=4, 28 words  ->     2.7 ms
+ *   maxLines=5, 35 words  ->    47.9 ms
+ *   maxLines=6, 42 words  ->   842.4 ms      for ONE cue
+ *
+ *   resegment over 2 minutes of speech at 6 lines / 20 s: 1118 ms
+ *   -> a four-hour recording: over two minutes
+ *
+ * All of it on the main process's single thread. `writeAutoExports` runs at the
+ * end of every job and `srt` is in the shipped default formats, so the window
+ * stops repainting, Cancel stops responding and no further job starts.
+ *
+ * The bound below is generous on purpose — the point is the difference between
+ * milliseconds and seconds, not a stopwatch.
+ */
+describe('laying out a cue that genuinely needs every line it is allowed', () => {
+  // Six characters plus a space: six to a 42-character line, so 42 words cannot
+  // be packed into six lines and every n is searched to exhaustion.
+  const words = Array.from({ length: 42 }, (_, i) => `word${String(i).padStart(2, '0')}`);
+
+  it('does not enumerate its way through three quarters of a million partitions', () => {
+    const started = performance.now();
+    layoutLines(words, 42, 6);
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  it('still lays out a whole transcript at those settings in reasonable time', () => {
+    let clock = 0;
+    const timed = Array.from({ length: 300 }, (_, i) => {
+      const startMs = clock;
+      clock += 400;
+      return { text: `word${String(i).padStart(3, '0')}`, startMs, endMs: startMs + 350 };
+    });
+    const started = performance.now();
+    resegment([{ startMs: 0, endMs: clock, text: timed.map((w) => w.text).join(' '), words: timed }], {
+      ...DEFAULT_SEGMENTATION,
+      maxLines: 6,
+      maxDurationMs: 20_000,
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});

@@ -129,27 +129,76 @@ export function layoutLines(words: string[], maxCharsPerLine: number, maxLines: 
   return lines;
 }
 
+/**
+ * The most evenly balanced way to cut `words` into exactly `lineCount`
+ * contiguous lines, none longer than `maxCharsPerLine`. `null` when there is no
+ * such cut.
+ *
+ * The objective is unchanged from the version this replaced — minimise
+ * `max(length) - min(length)` across the lines — and so is every result. What
+ * changed is that the search used to build EVERY partition and check the
+ * line-length constraint only at the leaves.
+ *
+ * That is fine at the default two lines, where the search is linear, and the
+ * comment on `layoutLines` said as much: "a cue is a couple of dozen words at
+ * most". The Output tab offers six lines and thirty seconds a cue, and at those
+ * settings a cue holds enough words to genuinely need all six — so every n fails
+ * and n = 6 enumerates C(41,5) ≈ 750 000 partitions, allocating an array at each
+ * node. Measured: 842 ms for one cue, and over two minutes of frozen main
+ * process for a four-hour recording, since `writeAutoExports` runs on it at the
+ * end of every job.
+ *
+ * Three changes, none of which touch what is returned:
+ *
+ * - the running line length is carried down instead of being rebuilt with
+ *   `slice().join()` at every node;
+ * - a line is abandoned the moment it passes `maxCharsPerLine`, rather than at
+ *   the leaf. This is the one that matters: it caps the branching factor at the
+ *   number of words that fit on a line, so the tree stops being a function of
+ *   the cue's length;
+ * - a starting point that cannot be completed is remembered, so no dead end is
+ *   explored twice.
+ */
 function balancedSplit(words: string[], lineCount: number, maxCharsPerLine: number): string[] | null {
   let bestLines: string[] | null = null;
   let bestSpread = Number.POSITIVE_INFINITY;
-  const walk = (index: number, taken: string[][], remaining: number): void => {
+  /** `index * (lineCount + 1) + remaining` for starts already known to be hopeless. */
+  const hopeless = new Set<number>();
+
+  const walk = (index: number, taken: string[], remaining: number): boolean => {
     if (remaining === 0) {
-      if (index !== words.length) return;
-      const lines = taken.map((chunk) => chunk.join(' '));
-      if (lines.some((line) => line.length > maxCharsPerLine)) return;
-      const lengths = lines.map((line) => line.length);
+      if (index !== words.length) return false;
+      const lengths = taken.map((line) => line.length);
       const spread = Math.max(...lengths) - Math.min(...lengths);
       if (spread < bestSpread) {
         bestSpread = spread;
-        bestLines = lines;
+        bestLines = [...taken];
       }
-      return;
+      return true;
     }
+
+    const key = index * (lineCount + 1) + remaining;
+    if (hopeless.has(key)) return false;
+
+    let completed = false;
+    let line = '';
     // Leave at least one word for each remaining line.
-    for (let end = index + 1; end <= words.length - (remaining - 1); end++) {
-      walk(end, [...taken, words.slice(index, end)], remaining - 1);
+    for (let end = index; end <= words.length - remaining; end++) {
+      const word = words[end];
+      if (word === undefined) break;
+      line = line.length === 0 ? word : `${line} ${word}`;
+      // Every longer prefix is longer still, so there is nothing further along
+      // this branch. Before, the whole subtree below here was explored anyway.
+      if (line.length > maxCharsPerLine) break;
+      taken.push(line);
+      if (walk(end + 1, taken, remaining - 1)) completed = true;
+      taken.pop();
     }
+
+    if (!completed) hopeless.add(key);
+    return completed;
   };
+
   walk(0, [], lineCount);
   return bestLines;
 }
