@@ -160,3 +160,64 @@ describe('languageFromJson', () => {
     expect(languageFromJson({ result: { language: 42 } })).toBeNull();
   });
 });
+
+/*
+ * ── Scripts that do not put spaces between words ──────────────────────────
+ *
+ * `wordsFromTokens` starts a new word on a leading space, on a whitespace
+ * token, or after sentence-ending punctuation. Chinese, Japanese, Thai, Lao,
+ * Khmer and Burmese have none of those between words, so every token between
+ * two full stops merged into ONE Word.
+ *
+ * Measured before the fix, on 83 Han characters covering 13.3 seconds of
+ * speech — an ordinary spoken clause chain:
+ *
+ *   83 characters -> 1 word -> 1 cue
+ *   longest line: 83 characters, against a limit of 42
+ *   cue duration: clamped to 7000 ms, so the subtitle vanished 6.3 s before
+ *   the speaker did
+ *
+ * Every rule in `resegment` operates on words. One word means no break is
+ * possible, no line can be balanced, no duration can be honoured — the whole
+ * subtitle layer is inert for roughly a fifth of the languages the app claims.
+ *
+ * The tokenizer already gives the right granularity; the merge was throwing it
+ * away. A token in a script without word spaces now stands on its own.
+ */
+describe('tokens in a script that does not space its words', () => {
+  function tokens(text: string, msPerToken = 160): { text: string; offsets: { from: number; to: number }; p: number }[] {
+    let clock = 0;
+    return [...text].map((character) => {
+      const from = clock;
+      clock += msPerToken;
+      return { text: character, offsets: { from, to: clock }, p: 0.9 };
+    });
+  }
+
+  it('does not glue a whole Chinese clause chain into one word', () => {
+    const words = wordsFromTokens(tokens('这个问题非常复杂需要我们从多个角度来分析'));
+    expect(words.length).toBeGreaterThan(1);
+  });
+
+  it('does not glue Japanese kana and kanji together either', () => {
+    const words = wordsFromTokens(tokens('これはとても複雑な問題です'));
+    expect(words.length).toBeGreaterThan(1);
+  });
+
+  it('leaves spaced scripts exactly as they were', () => {
+    let clock = 0;
+    const spaced = 'we are going to discuss this'.split(' ').map((word) => {
+      const from = clock;
+      clock += 300;
+      return { text: ` ${word}`, offsets: { from, to: clock }, p: 0.9 };
+    });
+    expect(wordsFromTokens(spaced).map((w) => w.text)).toEqual([
+      'we', 'are', 'going', 'to', 'discuss', 'this',
+    ]);
+  });
+
+  it('keeps every character, in order', () => {
+    const source = '这个问题非常复杂';
+    expect(wordsFromTokens(tokens(source)).map((w) => w.text).join('')).toBe(source);
+  });
+});

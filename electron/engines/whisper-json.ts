@@ -90,6 +90,30 @@ export interface PendingWord {
  * leading space is part of the token text — that space is the entire word
  * boundary signal, which is why the raw text is inspected before trimming.
  */
+/**
+ * Scripts that do not put a space between one word and the next.
+ *
+ * Han, kana, Thai, Lao, Khmer and Burmese. `wordsFromTokens` decides where a
+ * word begins from a leading space, a whitespace token, or sentence-ending
+ * punctuation, and a sentence in any of these offers none of the three — so
+ * every token between two full stops merged into a single Word.
+ *
+ * Measured on 83 Han characters covering 13.3 seconds of speech: one word, one
+ * cue, 83 characters on a line whose limit is 42, and the cue clamped to 7000 ms
+ * so the subtitle vanished six seconds before the speaker did. Every rule in
+ * `resegment` operates on words, so one word means no break, no balanced line
+ * and no honoured duration — the subtitle layer inert for roughly a fifth of the
+ * languages this app claims to handle.
+ *
+ * The tokenizer already produces the right granularity. A token in one of these
+ * scripts now simply stands on its own rather than being glued to its
+ * neighbour. That is not linguistic word segmentation — doing that properly
+ * needs a dictionary — but a cue can now be broken between characters, which is
+ * what CJK subtitling does anyway.
+ */
+const NO_WORD_SPACES =
+  /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u0e00-\u0eff\u1000-\u109f\u1780-\u17ff]/u;
+
 export function wordsFromTokens(tokens: readonly unknown[]): Word[] {
   const words: Word[] = [];
   let pending: PendingWord | null = null;
@@ -127,7 +151,15 @@ export function wordsFromTokens(tokens: readonly unknown[]): Word[] {
     if (offsets === null) continue;
 
     const startsWord =
-      pending === null || boundaryPending || /^\s/.test(raw) || SENTENCE_END.test(pending.text.trimEnd());
+      pending === null ||
+      boundaryPending ||
+      /^\s/.test(raw) ||
+      SENTENCE_END.test(pending.text.trimEnd()) ||
+      // Either side being in a script without word spaces is enough: a Han
+      // character must not be glued to the one before it, and a Latin word must
+      // not be glued onto a Han character either.
+      NO_WORD_SPACES.test(raw.trimStart().charAt(0)) ||
+      NO_WORD_SPACES.test(pending.text.trimEnd().slice(-1));
     if (startsWord) flush();
     boundaryPending = false;
 

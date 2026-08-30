@@ -280,3 +280,43 @@ describe('fitBitrate', () => {
     expect(fitBitrate(aac, 0, 17 * 1024 * 1024)).toBe('32k');
   });
 });
+
+/*
+ * ── The floor was allowed to outrank the encoding ─────────────────────────
+ *
+ * `fitBitrate`'s own doc comment states the rule: "It never raises the bitrate
+ * above the encoding's default. A ceiling is a constraint, not a licence to
+ * spend more on a short file." The code did the opposite for any encoding whose
+ * own rate sits below `MIN_UPLOAD_KBPS`:
+ *
+ *     Math.max(MIN_UPLOAD_KBPS, Math.min(preferred, fittedKbps))
+ *
+ * The floor is applied last, so when `preferred` (12 for Opus) is under the
+ * floor (16), the floor wins and 16k comes back — at every duration, including
+ * a one-minute file nowhere near the ceiling. The upload then grows by a third
+ * while the function's whole purpose is to shrink it.
+ *
+ * Every test above used AAC, whose 32k is above the floor, which is exactly why
+ * this survived. Opus is the encoding the app prefers when ffmpeg has it.
+ */
+describe('fitBitrate with an encoding whose own rate is below the floor', () => {
+  const opus = UPLOAD_ENCODINGS.find((entry) => entry.codec === 'libopus');
+
+  it('is the encoding the app prefers, and it is configured below the floor', () => {
+    expect(opus).toBeDefined();
+    expect(opus!.bitrate).toBe('12k');
+  });
+
+  it.each([1, 5, 30, 70, 120])('never exceeds its own 12k — %i minutes under a 17 MiB ceiling', (minutes) => {
+    const chosen = fitBitrate(opus!, minutes * 60_000, 17 * 1024 * 1024);
+    expect(Number.parseInt(chosen, 10)).toBeLessThanOrEqual(12);
+  });
+
+  it('still shrinks when the ceiling actually bites', () => {
+    // Four hours at 12k is about 21 MiB, over the ceiling, so it has to come
+    // down — and the floor may not push it back up.
+    const chosen = Number.parseInt(fitBitrate(opus!, 240 * 60_000, 17 * 1024 * 1024), 10);
+    expect(chosen).toBeLessThanOrEqual(12);
+    expect(chosen).toBeGreaterThan(0);
+  });
+});

@@ -720,7 +720,16 @@ export function fitBitrate(encoding: UploadEncoding, durationMs: number, maxByte
   if (maxBytes === null || !Number.isFinite(preferred) || durationMs <= 0) return encoding.bitrate;
   const seconds = durationMs / 1000;
   const fittedKbps = Math.floor((maxBytes * CEILING_HEADROOM * 8) / seconds / 1000);
-  const chosen = Math.max(MIN_UPLOAD_KBPS, Math.min(preferred, fittedKbps));
+  // The floor may not outrank the encoding. `Math.max(MIN_UPLOAD_KBPS, …)`
+  // applied last did exactly that, and turned the ceiling into a licence to
+  // spend more: Opus is configured at 12k, below the 16k floor, so every
+  // duration came back at 16k and the upload grew by a third — the opposite of
+  // what a ceiling is for, and on a one-minute file nowhere near it. Every test
+  // for this function used AAC at 32k, which is above the floor, so it never
+  // showed. `MIN_UPLOAD_KBPS` exists to stop the FITTING from producing
+  // something unintelligible, not to raise a rate the encoding chose on purpose.
+  const floor = Math.min(MIN_UPLOAD_KBPS, preferred);
+  const chosen = Math.max(floor, Math.min(preferred, fittedKbps));
   return `${chosen}k`;
 }
 
