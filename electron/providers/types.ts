@@ -93,6 +93,39 @@ export class ProviderError extends Error {
 }
 
 /**
+ * The transport for a request that may legitimately take an hour.
+ *
+ * Global `fetch` in Node — and therefore in Electron's main process — is
+ * undici, and undici applies a `headersTimeout` of 300 seconds that nothing in
+ * this codebase asked for. The clock is refreshed when the request body has
+ * finished uploading, so the whole budget is provider think-time: a provider
+ * that transcribes synchronously and answers after five minutes has its socket
+ * destroyed with `UND_ERR_HEADERS_TIMEOUT` — after it has done the work and
+ * billed for it. `abortableFetch` then reports "Could not reach <host>. Check
+ * your internet connection", and Try again uploads and bills the file a second
+ * time.
+ *
+ * Measured, holding response headers for 310 s against a loopback server:
+ *
+ *   global fetch : THREW after 301123 ms  UND_ERR_HEADERS_TIMEOUT
+ *   net.fetch    : OK 200 after 310033 ms
+ *
+ * `net.fetch` is Electron's own, over Chromium's network stack, which has no
+ * such ceiling — and as a bonus honours the system proxy and certificate store,
+ * which matters to anyone behind a corporate one. The fallback to global
+ * `fetch` is for the tests, which import this module outside Electron.
+ *
+ * Cancellation is unaffected: `net.fetch` takes the same `AbortSignal`, and the
+ * comment below still holds — the user's Cancel is the only timeout this layer
+ * should have.
+ */
+export async function longFetch(url: string, init: RequestInit): Promise<Response> {
+  const { net } = await import('electron').catch(() => ({ net: undefined }));
+  if (net !== undefined && typeof net.fetch === 'function') return net.fetch(url, init);
+  return fetch(url, init);
+}
+
+/**
  * `fetch` with the job's cancellation wired in and network failures translated.
  *
  * The signal is applied last and overwrites anything in `init`, so an adapter
@@ -110,7 +143,7 @@ export async function abortableFetch(url: string, init: RequestInit, signal: Abo
   signal.throwIfAborted();
 
   try {
-    return await fetch(url, { ...init, signal });
+    return await longFetch(url, { ...init, signal });
   } catch (error) {
     // undici rejects with an AbortError whose shape differs across runtimes.
     // Re-throwing the signal's own reason gives every adapter one thing to

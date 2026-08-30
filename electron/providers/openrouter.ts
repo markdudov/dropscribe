@@ -41,6 +41,7 @@ import { findProvider } from '../shared/providers';
 import type { Segment, Transcript, Word } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
 import type { CloudContext, CloudRequest, ProviderAdapter } from './types';
+import { longFetch } from './types';
 
 const API_BASE = 'https://openrouter.ai/api/v1';
 
@@ -162,7 +163,9 @@ async function httpJson(
   }, timeoutMs);
 
   try {
-    const response = await fetch(`${API_BASE}${path}`, {
+    // `longFetch`: TRANSCRIBE_TIMEOUT_MS above is fifteen minutes, and global
+    // fetch silently capped it at undici's five. See providers/types.ts.
+    const response = await longFetch(`${API_BASE}${path}`, {
       method: init.method,
       headers: init.headers,
       ...(init.body !== undefined ? { body: init.body } : {}),

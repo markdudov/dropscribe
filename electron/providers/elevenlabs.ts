@@ -29,6 +29,7 @@ import type { KeyTestResult, ProviderModel } from '../shared/providers';
 import type { Segment, Transcript, Word } from '../shared/transcript';
 import { normalizeTranscript } from '../shared/transcript';
 import type { CloudContext, CloudRequest, ProviderAdapter } from './types';
+import { longFetch } from './types';
 
 const API_ROOT = 'https://api.elevenlabs.io';
 const SUBSCRIPTION_URL = `${API_ROOT}/v1/user/subscription`;
@@ -876,7 +877,11 @@ export const elevenLabsAdapter: ProviderAdapter = {
 
     let res: Response;
     try {
-      res = await fetch(STT_URL, {
+      // `longFetch`, not global fetch: the comment at the top of this file
+      // already names undici's five-minute header timeout as something that
+      // fires on a long file "even though nothing is actually wrong". It no
+      // longer fires — see providers/types.ts.
+      res = await longFetch(STT_URL, {
         method: 'POST',
         headers: authHeaders(apiKey),
         body: form,

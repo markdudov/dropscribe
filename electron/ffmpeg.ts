@@ -336,6 +336,20 @@ async function probeStreamDuration(filePath: string): Promise<number | null> {
  * seconds later with `Stream map '0:a:0' matches no streams`, which means
  * nothing to anyone who has not used ffmpeg.
  */
+/**
+ * A file that cannot be transcribed because of what it *is*, not because
+ * something went wrong on the way.
+ *
+ * The queue's `describeFailure` marks unknown failures retryable on purpose —
+ * "offering a button that turns out not to help costs one wasted click;
+ * withholding it from somebody whose only problem was a half-open socket costs
+ * them the whole transcript". That reasoning holds for unknown failures. This
+ * one is known.
+ */
+export class MediaInputError extends Error {
+  override readonly name = 'MediaInputError';
+}
+
 export async function probe(filePath: string): Promise<MediaInfo> {
   const bytes = sizeOf(filePath);
   const result = await runBinary('ffprobe', [...PROBE_ARGS, filePath]);
@@ -363,7 +377,12 @@ export async function probe(filePath: string): Promise<MediaInfo> {
     // Thrown rather than returned as `hasAudio: false`. A file with no audio is
     // never a job — every caller would have to turn this into the same error —
     // and the message can name the file only here.
-    throw new Error(`“${basename(filePath)}” has no audio track, so there is nothing to transcribe.`);
+    //
+    // A distinct class, so the queue can tell this apart from the failures its
+    // last branch treats as worth another go. It is not: the absence of an
+    // audio track is a property of the file, and "Try again" on it produces the
+    // identical sentence, which reads as the app not having tried.
+    throw new MediaInputError(`“${basename(filePath)}” has no audio track, so there is nothing to transcribe.`);
   }
 
   let seconds = format === null ? null : numberFrom(format['duration']);

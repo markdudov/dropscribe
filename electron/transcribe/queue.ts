@@ -23,7 +23,7 @@ import * as path from 'node:path';
 
 import type { Settings } from '../api-types';
 import { engineFor } from '../engines';
-import { compressForUpload, extractWav16k, probe } from '../ffmpeg';
+import { MediaInputError, compressForUpload, extractWav16k, probe } from '../ffmpeg';
 import { assertAuthorized, authorizeAll } from '../path-policy';
 import { adapterFor } from '../providers';
 import { exportFileName, renderTranscript } from '../shared/exports';
@@ -151,6 +151,15 @@ function describeFailure(error: unknown): JobError {
       message: error.message,
       ...(error.detail !== undefined ? { detail: error.detail } : {}),
       retryable: error.retryable,
+    };
+  }
+
+  if (error instanceof MediaInputError) {
+    return {
+      message: error.message,
+      ...detailOf(error),
+      // Known, and permanent for this file. See the class.
+      retryable: false,
     };
   }
 
