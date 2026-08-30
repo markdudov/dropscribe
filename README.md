@@ -4,15 +4,21 @@
 desktop app for macOS and Windows that can run entirely on your own machine —
 no account, no subscription, and nothing leaving the computer.
 
+<video src="https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4"
+       poster="https://github.com/markdudov/dropscribe/raw/main/docs/demo-poster.png"
+       controls muted playsinline width="100%"></video>
+
 <!--
-  SCREENSHOT GOES HERE.
-
-  Drop the file at `docs/screenshot.png` (the main window with a couple of
-  finished jobs in the queue, light theme, 1600×1000 or larger), then delete
-  this comment and uncomment the line below:
-
-  ![The DropScribe window with a finished queue](docs/screenshot.png)
+  The <video> tag above is what GitHub renders on the repository page. Some
+  places that show a README — npm, a few mirrors, an editor's preview — render
+  no video at all, so the line below is the fallback: a still that always
+  appears, linking to the file itself.
 -->
+
+[![DropScribe: drop a file, watch the queue, export the transcript](docs/demo-poster.png)](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4)
+
+*86 seconds: a file dropped in, the queue working, a cloud key tested, and the
+transcript exported.*
 
 ---
 
