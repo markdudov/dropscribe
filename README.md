@@ -12,20 +12,22 @@ no account, no subscription, and nothing leaving the computer.
   <video> here is a still image that downloads a file when clicked, which is not
   a demo. The one way to get a real inline player is a
   github.com/user-attachments URL, and those exist only for a file uploaded
-  through the web interface by hand.
+  through the web interface and then POSTED; an upload left in an unsubmitted
+  draft answers 404 to everyone but its author, which was measured rather than
+  assumed.
 
-  Fifteen seconds at ACTUAL speed, not the whole recording sped up. A GIF of all
-  86 seconds at 1x would be about 25 MB, so the choice is between the whole
-  thing too fast to follow and one part of it at the pace a person actually
-  works. The part shown is the payoff — a job finishing, the transcript opening,
-  the subtitle formats — and the full recording is linked underneath.
+  So: the whole recording, at actual speed, as a GIF. 720px and 8 fps rather
+  than 800 and 10 — that is 7.5 MB instead of 11, and the interface is still
+  legible down to the elapsed-time counters. It starts at 7.5s, after the file
+  picker closes, so the front page shows the app rather than the contents of
+  somebody's Downloads folder.
 -->
 
-![DropScribe: a local transcription finishing, the transcript opening, and the subtitle formats](docs/demo.gif)
+![DropScribe: a file transcribed locally, a cloud key added, and the transcript exported](docs/demo.gif)
 
-*A job finishing, the transcript opening, and the same transcript as SRT — at
-actual speed. [The full 86 seconds](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4)
-covers dropping the file in, adding a cloud key, and exporting.*
+*The whole thing, at the speed it actually happens: a file transcribed on the
+machine, the transcript opened and exported, a Deepgram key added and tested,
+then a second file sent to the cloud.*
 
 ---
 
