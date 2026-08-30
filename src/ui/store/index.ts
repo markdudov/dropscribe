@@ -208,6 +208,8 @@ export interface StoreState {
   transcriptJobId: string | null;
   /** One transient line for the user: an export path, a failure. `null` when nothing to say. */
   notice: string | null;
+  /** Bumped on every `setNotice`, so an identical message twice is still twice. */
+  noticeSeq: number;
 
   init(): Promise<void>;
   dispose(): void;
@@ -292,6 +294,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   settingsTab: 'models',
   transcriptJobId: null,
   notice: null,
+  noticeSeq: 0,
 
   // ── Lifecycle ───────────────────────────────────────────────────────────
 
@@ -373,7 +376,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   setSettingsTab: (settingsTab) => { set({ settingsTab }); },
   openTranscript: (transcriptJobId) => { set({ transcriptJobId }); },
   closeTranscript: () => { set({ transcriptJobId: null }); },
-  setNotice: (notice) => { set({ notice }); },
+  setNotice: (notice) => { set((state) => ({ notice, noticeSeq: state.noticeSeq + 1 })); },
 
   // ── Target and settings ─────────────────────────────────────────────────
 
@@ -409,7 +412,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       applyTheme(settings.theme);
       set({ settings });
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
@@ -438,7 +441,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       const paths = await api().openFiles();
       if (paths.length > 0) await get().addFiles(paths);
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
@@ -447,28 +450,38 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (target === null) {
       // Nothing to run them through. Opening settings is the only action that
       // helps, so it is taken rather than described.
-      set({ notice: 'Download a local model or add a provider key first.', settingsOpen: true, settingsTab: 'models' });
+      set((s) => ({ notice: 'Download a local model or add a provider key first.', noticeSeq: s.noticeSeq + 1, settingsOpen: true, settingsTab: 'models' }));
       return;
     }
     try {
       const created = await api().enqueue(paths, target);
       set((state) => {
         let jobs = state.jobs;
+        // Introduced, not merged. This reply is a snapshot from before the
+        // `await` returned, and `job:updated` for these ids may already have
+        // arrived — a short file can be extracting, or done, by now.
+        // `mergeById` replaces the entry wholesale, so it wrote 'queued' with
+        // no progress back over the fresher state and the row jumped
+        // backwards. The reply's job is to make the rows exist; everything
+        // after that belongs to the events.
+        //
         // Folded back to front so that after each one is prepended the batch
         // ends up in the order the user dropped it, not reversed.
-        for (const job of [...created].reverse()) jobs = mergeById(jobs, job);
+        for (const job of [...created].reverse()) {
+          if (!jobs.some((existing) => existing.id === job.id)) jobs = [job, ...jobs];
+        }
         return { jobs };
       });
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
   cancelJob: async (id) => {
-    try { await api().cancelJob(id); } catch (error) { set({ notice: describe(error) }); }
+    try { await api().cancelJob(id); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
   retryJob: async (id) => {
-    try { await api().retryJob(id); } catch (error) { set({ notice: describe(error) }); }
+    try { await api().retryJob(id); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
   removeJob: async (id) => {
     try {
@@ -478,7 +491,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         transcriptJobId: state.transcriptJobId === id ? null : state.transcriptJobId,
       }));
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
   clearFinished: async () => {
@@ -492,17 +505,17 @@ export const useStore = create<StoreState>()((set, get) => ({
         transcriptJobId: jobs.some((job) => job.id === state.transcriptJobId) ? state.transcriptJobId : null,
       }));
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
   revealFile: async (path) => {
-    try { await api().revealFile(path); } catch (error) { set({ notice: describe(error) }); }
+    try { await api().revealFile(path); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
 
   // ── Models ──────────────────────────────────────────────────────────────
 
   refreshModels: async () => {
-    try { set({ models: await api().listModels() }); } catch (error) { set({ notice: describe(error) }); }
+    try { set({ models: await api().listModels() }); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
 
   downloadModel: async (id) => {
@@ -513,15 +526,22 @@ export const useStore = create<StoreState>()((set, get) => ({
       await get().refreshModels();
       // A first model turns a dead drop zone into a live one. Arming it here
       // saves the user a trip to the target picker to state the obvious.
+      //
+      // Only if it is actually on disk. `downloadModel` settles when the
+      // download STOPS, which includes the user cancelling it, so arming on the
+      // id alone armed a model that was never installed — and the next drop
+      // failed naming a file that is not there. `refreshModels` above has just
+      // re-read the real state; ask it.
       const state = get();
-      if (state.target === null) set({ target: { kind: 'local', modelId: id } });
+      const installed = get().models.some((model) => model.id === id && model.installed);
+      if (state.target === null && installed) set({ target: { kind: 'local', modelId: id } });
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
   cancelModelDownload: async (id) => {
-    try { await api().cancelModelDownload(id); } catch (error) { set({ notice: describe(error) }); }
+    try { await api().cancelModelDownload(id); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
 
   deleteModel: async (id) => {
@@ -534,14 +554,14 @@ export const useStore = create<StoreState>()((set, get) => ({
         set({ target: pickInitialTarget(state.settings, get().models, state.providers) });
       }
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
   // ── Providers ───────────────────────────────────────────────────────────
 
   refreshProviders: async () => {
-    try { set({ providers: await api().listProviders() }); } catch (error) { set({ notice: describe(error) }); }
+    try { set({ providers: await api().listProviders() }); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
 
   testProviderKey: async (id, key) => {
@@ -567,7 +587,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         set({ target: pickInitialTarget(state.settings, state.models, get().providers) });
       }
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
@@ -582,7 +602,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       await api().selectProviderModel(id, modelId);
       await get().refreshProviders();
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
@@ -596,7 +616,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       if (dir === null) return;
       await get().updateOutput({ outputDir: dir, besideSource: false });
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
@@ -605,10 +625,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   exportTranscript: async (jobId, format) => {
     try {
       const path = await api().exportTranscript(jobId, format);
-      if (path !== null) set({ notice: `Saved to ${path}` });
+      if (path !== null) set((s) => ({ notice: `Saved to ${path}`, noticeSeq: s.noticeSeq + 1 }));
       return path;
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
       return null;
     }
   },
@@ -616,14 +636,14 @@ export const useStore = create<StoreState>()((set, get) => ({
   copyTranscript: async (jobId, format) => {
     try {
       await api().copyTranscript(jobId, format);
-      set({ notice: 'Copied to the clipboard' });
+      set((s) => ({ notice: 'Copied to the clipboard', noticeSeq: s.noticeSeq + 1 }));
     } catch (error) {
-      set({ notice: describe(error) });
+      set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 }));
     }
   },
 
   openExternal: async (link) => {
-    try { await api().openExternal(link); } catch (error) { set({ notice: describe(error) }); }
+    try { await api().openExternal(link); } catch (error) { set((s) => ({ notice: describe(error), noticeSeq: s.noticeSeq + 1 })); }
   },
 }));
 

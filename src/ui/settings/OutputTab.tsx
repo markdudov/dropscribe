@@ -9,7 +9,7 @@
  * anything, and why the reset button is safe to press.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FolderOpen, RotateCcw } from 'lucide-react';
 
 import type { ExportFormat } from '../../../electron/api-types';
@@ -142,6 +142,30 @@ function NumberField({
     setDraft(String(clamped));
     if (clamped !== value) onCommit(clamped);
   }
+
+  /*
+   * And once more on the way out.
+   *
+   * The draft is committed on blur, and Enter blurs — but Escape and a click on
+   * the backdrop close the modal without one, so a number the user had just
+   * typed was dropped on the floor with nothing to say it had been. Typing 45
+   * into "Longest line" and pressing Escape left the setting at 42, silently.
+   *
+   * Everything needed is kept in a ref rather than captured, because an
+   * unmount cleanup with `[]` deps would otherwise see the props of the first
+   * render. `onCommit` is a store action, so calling it here touches no React
+   * state in a tree that is going away — and `setDraft` deliberately is not
+   * called, for the same reason.
+   */
+  const latest = useRef({ draft, value, min, max, onCommit });
+  useEffect(() => { latest.current = { draft, value, min, max, onCommit }; });
+  useEffect(() => () => {
+    const { draft: raw, value: current, min: low, max: high, onCommit: save } = latest.current;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    const clamped = Math.min(high, Math.max(low, parsed));
+    if (clamped !== current) save(clamped);
+  }, []);
 
   return (
     <div className="flex items-center justify-between gap-4">

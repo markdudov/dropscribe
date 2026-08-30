@@ -347,12 +347,33 @@ export function JobRow({ job }: JobRowProps): ReactElement {
         </div>
       ) : null}
 
-      {job.status === 'failed' && job.error !== undefined ? (
-        <div className="mt-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-500/25 dark:bg-red-500/[0.08] dark:text-red-300">
+      {/*
+        `job.error !== undefined`, not `status === 'failed'`. The queue writes an
+        error onto a job that SUCCEEDED when the automatic export fails, and says
+        why in a comment: "failing to write a file into a read-only folder must
+        not throw away the expensive thing, so this failure is reported on an
+        otherwise successful job rather than turning the whole job red". It was
+        reported nowhere — this block only ever rendered for a failed job, so the
+        transcript was safe, the file was not written, and nothing said so.
+
+        Amber rather than red when the job is done: the transcription worked and
+        is one click away in View. Only the file on disk is missing.
+      */}
+      {job.error !== undefined ? (
+        <div
+          className={
+            job.status === 'done'
+              ? 'mt-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/[0.08] dark:text-amber-200'
+              : 'mt-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-500/25 dark:bg-red-500/[0.08] dark:text-red-300'
+          }
+        >
           <p className="selectable font-medium">{job.error.message}</p>
-          {job.error.retryable ? null : (
+          {job.status === 'done' ? (
+            <p className="mt-0.5 opacity-80">The transcript itself is fine — open it with View, or export it somewhere else.</p>
+          ) : null}
+          {job.status !== 'done' && job.error.retryable ? null : job.status !== 'done' ? (
             <p className="mt-0.5 opacity-80">Trying again will not help until something changes.</p>
-          )}
+          ) : null}
           {job.error.detail !== undefined ? (
             /*
               The engine's own words, folded away. They are what makes a bug

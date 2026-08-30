@@ -40,6 +40,7 @@ export function App(): ReactElement {
   const transcriptJobId = useStore((s) => s.transcriptJobId);
   const openSettings = useStore((s) => s.openSettings);
   const notice = useStore((s) => s.notice);
+  const noticeSeq = useStore((s) => s.noticeSeq);
   const setNotice = useStore((s) => s.setNotice);
   // Assume the engines are fine until main says otherwise, so the warning strip
   // does not flash on every launch during the first IPC round trip.
@@ -58,11 +59,24 @@ export function App(): ReactElement {
     collect. `dispose()` exists for tests, which control both ends.
   */
 
+  /*
+   * `noticeSeq` in the dependencies, not just the text.
+   *
+   * Two files failing the same way in a row set the identical string, so
+   * `notice` does not change, the effect does not re-run, and the second
+   * failure inherits whatever is left of the first one's timer — sometimes
+   * nothing. The banner is already on screen showing those words, so there is
+   * no visible acknowledgement either: the user's second file failed and the
+   * app appeared not to notice.
+   *
+   * The store bumps a counter on every `setNotice`, which gives an occurrence
+   * an identity the text alone cannot.
+   */
   useEffect(() => {
     if (notice === null) return;
     const id = window.setTimeout(() => setNotice(null), NOTICE_MS);
     return () => window.clearTimeout(id);
-  }, [notice, setNotice]);
+  }, [notice, noticeSeq, setNotice]);
 
   if (initError !== null) {
     // No header, no drop zone, no settings gear. Every one of them would be a

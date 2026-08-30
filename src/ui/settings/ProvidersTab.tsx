@@ -16,7 +16,7 @@
  * is saved.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -151,6 +151,15 @@ function ProviderCard({ descriptor, state }: { descriptor: ProviderDescriptor; s
   };
 
   const typed = key.trim();
+  // Read by `onTest` when its answer comes back, because the value it captured
+  // may by then be a key the user has already replaced.
+  //
+  // Written in an effect, not during render: `react-hooks/refs` forbids the
+  // latter, and it is right to — a ref written during render is a value that
+  // depends on how many times React chose to render. The lag of one commit
+  // costs nothing here, because the only reader runs after a network round trip.
+  const typedRef = useRef(typed);
+  useEffect(() => { typedRef.current = typed; }, [typed]);
   const stored = state.hasKey;
 
   // A previously stored key that passed carries its verdict across relaunches,
