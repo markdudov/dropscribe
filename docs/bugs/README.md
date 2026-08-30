@@ -112,6 +112,8 @@ already spent once.
 
 | [0003](./0003-subtitle-cues-drew-three-lines.md) | Subtitle cues drew three lines, and ended mid-phrase | shared/subtitles | the accumulator counted characters where it had to ask whether the cue could be drawn | 2026-08-29 |
 | [0004](./0004-collapsed-word-timings-made-one-millisecond-cues.md) | Cues one millisecond long, two of them sharing an interval | shared/subtitles | whisper stacks a run of words on one timestamp, and the gap pass crushed cues to `startMs + 1` rather than keep their floor | 2026-08-29 |
+| [0005](./0005-a-third-line-on-the-carried-words.md) | A cue drew a third line at the shipped defaults | shared/subtitles | `flushAtBestBreak` carries words over, and the fit question from 0003 was never asked again about the carry | 2026-08-30 |
+| [0006](./0006-the-chosen-model-was-never-written-down.md) | Opening a file from Finder said there was nothing to transcribe with | ui/store | `setTarget` never persisted `defaultTarget`, which is the only thing main reads when a file arrives from outside the window | 2026-08-30 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:

@@ -377,7 +377,28 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   // ── Target and settings ─────────────────────────────────────────────────
 
-  setTarget: (target) => { set({ target }); },
+  setTarget: (target) => {
+    set({ target });
+    /*
+     * And persisted, because the renderer's copy is not the one that matters
+     * when a file arrives from outside the window.
+     *
+     * `flushPendingFiles` in main handles `open-file` and `second-instance` —
+     * a double-click in Finder, a "Open with DropScribe", a file passed on the
+     * command line — and it reads `settings.defaultTarget`, never the store.
+     * With nothing ever writing that field it stayed `null` for the life of the
+     * app, and every one of those paths met a dialog saying DropScribe had
+     * nothing to transcribe with yet and to go download a model — to a user who
+     * had downloaded one and picked it. `pickInitialTarget` was already written
+     * to read this value back and re-validate it on the next launch; the write
+     * was simply missing.
+     *
+     * Fire-and-forget: the pick has already taken effect locally, and a
+     * settings write that fails should not undo it or interrupt the drop the
+     * user is about to make. `updateSettings` surfaces its own failure.
+     */
+    void get().updateSettings({ defaultTarget: target });
+  },
 
   updateSettings: async (patch) => {
     try {

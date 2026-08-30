@@ -391,7 +391,21 @@ export function resegment(
         const start = pending[0]?.startMs ?? word.startMs;
         const wouldOverrunTime = word.endMs - start > opts.maxDurationMs;
         if (gap >= opts.gapSplitMs || speakerChanged) flush();
-        else if (wouldNotFit || wouldOverrunTime) flushAtBestBreak();
+        else if (wouldNotFit || wouldOverrunTime) {
+          flushAtBestBreak();
+          // Ask again. `flushAtBestBreak` chooses where to break by language,
+          // not by what will fit afterwards, and it carries the rest of the cue
+          // over — so the carried words plus this one can still need more lines
+          // than a cue has. Asking once was bug 0003's fix answering only half
+          // the question; this is the other half, and without it the shipped
+          // defaults draw a third line on roughly one cue in seventy.
+          if (
+            pending.length > 0 &&
+            !fitsInLines([...pending, word].map((w) => w.text), opts.maxCharsPerLine, opts.maxLines)
+          ) {
+            flush();
+          }
+        }
         else if (SENTENCE_END.test(previous.text) && readableLength(pending.map((w) => w.text).join(' ')) >= budget * 0.6) flush();
       }
       pending.push(word);

@@ -616,3 +616,51 @@ describe('a cue that the media clamp would leave too short to read', () => {
     }
   });
 });
+
+/*
+ * ── The carried words were never asked again ──────────────────────────────
+ *
+ * Bug 0003 replaced a character count with `fitsInLines`, so the accumulator
+ * asks the question that matters — can this cue be DRAWN in the lines it has —
+ * before taking another word. It asks once. `flushAtBestBreak` then closes the
+ * cue at the last sentence or clause end and CARRIES the rest over, and the
+ * word that triggered the split is pushed onto those carried words without the
+ * question being asked again.
+ *
+ * `flushAtBestBreak` chooses where to break by language, not by what will fit
+ * afterwards. So the carry can be long, and carry plus the new word can need
+ * three lines where a cue has two:
+ *
+ *   ["okay, extraordinarily but",
+ *    "Bundesausbildungsförderungsgesetz",
+ *    "something"]
+ *
+ * at the shipped defaults of 42 characters and 2 lines. No word here is even
+ * close to the line width — the longest is 33 — so this is not the unavoidable
+ * case of a URL that cannot be broken. It is a cue that simply was not
+ * re-measured. Found by fuzzing `resegment` at its default settings: 405 cues
+ * in 30 000 generated transcripts came out with more lines than the limit.
+ */
+describe('a cue whose words were carried over by a linguistic break', () => {
+  const texts = [
+    'a', 'right;', 'yes!', 'okay,', 'extraordinarily', 'but',
+    'Bundesausbildungsförderungsgesetz', 'something',
+  ];
+  let clock = 0;
+  const words: TimedWord[] = texts.map((text) => {
+    const startMs = clock;
+    clock += 500;
+    return { text, startMs, endMs: startMs + 300 };
+  });
+
+  const cues = resegment([{ startMs: 0, endMs: clock, text: texts.join(' '), words }]);
+
+  it('never draws more lines than a cue has', () => {
+    const tall = cues.filter((cue) => cue.lines.length > DEFAULT_SEGMENTATION.maxLines);
+    expect(tall.map((cue) => cue.lines)).toEqual([]);
+  });
+
+  it('keeps every word, in order', () => {
+    expect(cues.flatMap((cue) => cue.lines.join(' ').split(' '))).toEqual(texts);
+  });
+});
