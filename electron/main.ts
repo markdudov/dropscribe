@@ -103,6 +103,27 @@ import { createQueue } from './transcribe/queue';
  * completion, and a clear that arrives after a save started is the newer
  * intent.
  */
+/**
+ * Directories this process opened a dialog for, in this session.
+ *
+ * `output.outputDir` is a path main writes into: the queue's auto-export
+ * `mkdir`s it and writes a transcript there after every job, `output:exportMany`
+ * writes there on demand, and `files:reveal` treats it as an allowed target.
+ * `settings:save` took whatever string the renderer sent, and `coerceOutput` in
+ * services/settings.ts only checked that it WAS a string — no absolute-path
+ * check, no existence check, and no path-policy involvement.
+ *
+ * So a compromised renderer could point it at `~/Library/LaunchAgents` and have
+ * every finished job write a file there, with a name derived from the dropped
+ * file, without a dialog appearing. That is precisely the boundary
+ * `path-policy.ts` says it exists to hold: "a path becomes usable only by
+ * arriving from a source main itself controls".
+ *
+ * `files:chooseOutputDir` is such a source. The value already stored is another:
+ * main wrote it, after this same check, in an earlier session.
+ */
+const chosenOutputDirs = new Set<string>();
+
 const keyRemovals = new Map<ProviderId, number>();
 
 const REPO_URL = 'https://github.com/markdudov/dropscribe';
@@ -850,6 +871,8 @@ function registerIpc(): void {
     const chosen = result.canceled ? undefined : result.filePaths[0];
     if (chosen === undefined) return null;
     revealable.add(chosen);
+    // And remembered as a legitimate output directory. See `chosenOutputDirs`.
+    chosenOutputDirs.add(chosen);
     return chosen;
   });
 
@@ -1025,7 +1048,22 @@ function registerIpc(): void {
   handle('settings:get', async () => getSettings());
 
   handle('settings:save', async (_event, rawPatch) => {
-    const settings = saveSettings(requireSettingsPatch(rawPatch));
+    const patch = requireSettingsPatch(rawPatch);
+    const proposed = patch.output?.outputDir;
+    if (
+      typeof proposed === 'string' &&
+      proposed !== getSettings().output.outputDir &&
+      !chosenOutputDirs.has(proposed)
+    ) {
+      // A directory the renderer named rather than one the user picked. See
+      // `chosenOutputDirs`. Refused rather than silently ignored: silently
+      // keeping the old value would leave the panel showing a folder that is
+      // not the one being written to.
+      throw new Error(
+        'A folder for transcripts has to be chosen through the picker. Use "Choose folder…" in Settings.',
+      );
+    }
+    const settings = saveSettings(patch);
     // The native side of the window — the title bar, the scrollbars, the file
     // dialogs — follows `themeSource`, and only main can set it. A renderer
     // that changed only its own CSS would leave a light title bar bolted to a

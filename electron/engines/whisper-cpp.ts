@@ -19,8 +19,8 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
-import { cpus, tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { cpus } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 
 import { binaryPath } from '../binaries-runtime';
 import type { Transcript } from '../shared/transcript';
@@ -122,11 +122,21 @@ function startupError(cause: unknown): Error {
 async function run(request: LocalRunRequest, ctx: LocalRunContext): Promise<Transcript> {
   if (ctx.signal.aborted) throw cancelledError();
 
-  // `-of` takes a base path and whisper appends `.json`. It goes in the system
-  // temp directory rather than beside the media: the source may sit on a
-  // read-only mount or a network share, and a failed run must not leave a
-  // stray file in the user's movie folder.
-  const outBase = join(tmpdir(), `dropscribe-whisper-${randomUUID()}`);
+  // `-of` takes a base path and whisper appends `.json`. It goes beside the WAV
+  // this run was given, which is inside the job's own scratch directory: the
+  // source media may sit on a read-only mount or a network share, and a failed
+  // run must not leave a stray file in the user's movie folder either.
+  //
+  // Beside the WAV, and NOT a sibling of the temp root, which is where it used
+  // to go. `join(tmpdir(), 'dropscribe-whisper-<uuid>')` is next to
+  // `<tmpdir>/dropscribe`, not inside it, and `sweepOrphanedTemp` reads only
+  // that one directory — so the single cleanup that exists for "a hard crash, a
+  // force-quit, a `kill -9`, a machine that loses power mid-job" could never see
+  // it. Its only other removal is the `finally` below, which is exactly what
+  // does not run in those cases. At roughly a kilobyte per second of audio, an
+  // interrupted two-hour job stranded about 8 MB, permanently: macOS clears
+  // /var/folders only on a reboot and Windows never clears %TEMP% at all.
+  const outBase = join(dirname(request.wavPath), `whisper-${randomUUID()}`);
   const jsonPath = `${outBase}.json`;
 
   const args = [

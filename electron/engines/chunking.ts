@@ -225,7 +225,22 @@ export function stitch(
       // speech. Whichever starts first is kept, so this one survives only if it
       // begins after what is already there has finished saying its piece.
       const previous = out[out.length - 1];
-      if (previous !== undefined && previous.endMs - segment.startMs > BOUNDARY_TOLERANCE_MS) continue;
+      if (previous !== undefined && previous.endMs - segment.startMs > BOUNDARY_TOLERANCE_MS) {
+        // ...unless it also ENDS past what is already there.
+        //
+        // The header's assumption — "the earlier chunk covers the seam region
+        // completely, nothing is lost by discarding the later chunk's account
+        // of it" — holds for a segment lying inside the seam. It is false for
+        // one that begins inside it and runs past it: chunk N's audio stops at
+        // chunk(N+1).startMs + overlapMs and it can say nothing about what came
+        // after. Dropping this whole deletes the only decode of that span, and
+        // the transcript then reads as a clean sentence with a phrase missing
+        // from the middle — the worst shape this can take, because nothing
+        // about the output looks wrong.
+        const tail = afterMs(segment, previous.endMs);
+        if (tail !== null) out.push(tail);
+        continue;
+      }
       out.push(segment);
     }
   }
@@ -282,6 +297,42 @@ function normalizeForCompare(text: string): string {
  * every karaoke-style cue built from `words` stays pinned to the start of the
  * file, and nothing complains until someone opens the SRT.
  */
+/**
+ * The part of `segment` that starts at or after `cutMs`, or `null` if none does.
+ *
+ * Word-level, because that is the only honest way to cut one: the words carry
+ * their own times, so the split falls where the speech actually divides rather
+ * than at a proportion of the characters.
+ *
+ * A segment with no words is returned whole or not at all. Without timings
+ * there is no way to tell which half of the text is new, and guessing would
+ * either duplicate a phrase or delete one — so it is kept when the majority of
+ * its span is past the cut and dropped when it is not, which is the same
+ * judgement the caller was already making, just applied to the right question.
+ */
+function afterMs(segment: Segment, cutMs: number): Segment | null {
+  if (segment.endMs <= cutMs) return null;
+
+  if (segment.words.length === 0) {
+    return segment.startMs + (segment.endMs - segment.startMs) / 2 >= cutMs ? segment : null;
+  }
+
+  const kept = segment.words.filter((word) => word.startMs >= cutMs);
+  if (kept.length === 0) return null;
+  if (kept.length === segment.words.length) return segment;
+
+  const first = kept[0];
+  const last = kept[kept.length - 1];
+  if (first === undefined || last === undefined) return null;
+  return {
+    ...segment,
+    startMs: first.startMs,
+    endMs: Math.max(last.endMs, first.startMs),
+    text: kept.map((word) => word.text).join(' '),
+    words: kept,
+  };
+}
+
 function shiftSegment(segment: Segment, shiftMs: number): Segment {
   const startMs = Math.max(0, finiteMs(segment.startMs, 0) + shiftMs);
   const endMs = Math.max(startMs, finiteMs(segment.endMs, 0) + shiftMs);

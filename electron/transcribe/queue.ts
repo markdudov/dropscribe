@@ -469,7 +469,7 @@ export function createQueue(): JobQueue {
     assertAuthorized(job.filePath);
     throwIfCancelled(signal);
 
-    const info = await probe(job.filePath);
+    const info = await probe(job.filePath, { signal });
     if (!info.hasAudio) {
       throw new QueueError(
         'This file has no audio track, so there is nothing to transcribe.',
@@ -528,7 +528,17 @@ export function createQueue(): JobQueue {
     // expensive thing, so this failure is reported on an otherwise successful
     // job rather than turning the whole job red.
     try {
-      await writeAutoExports(job, finished, settings);
+      // `getSettings()` fresh, not the snapshot this run started with.
+      //
+      // OutputTab tells the user the subtitle rules "take effect on the next
+      // *export*, because cues are derived from the stored transcript every
+      // time it is rendered, never baked into it". The auto-export IS an
+      // export, and it was the one that did not honour them: a two-hour job
+      // whose settings changed halfway wrote a file laid out to the old rules,
+      // while the preview, Copy and Export dialog beside it — all of which read
+      // the settings fresh — used the new ones. The user then had two .srt
+      // files with different cue boundaries and nothing to say which was which.
+      await writeAutoExports(job, finished, getSettings());
     } catch (error) {
       const failure = describeFailure(error);
       update(job, {

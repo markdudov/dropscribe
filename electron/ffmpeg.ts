@@ -308,14 +308,14 @@ function sizeOf(filePath: string): number {
  * without it a video stream's duration would be in the same list, and picking
  * the wrong one puts every subtitle cue in the wrong place.
  */
-async function probeStreamDuration(filePath: string): Promise<number | null> {
+async function probeStreamDuration(filePath: string, options: RunOptions = {}): Promise<number | null> {
   const result = await runBinary('ffprobe', [
     '-v', 'error',
     '-select_streams', 'a:0',
     '-show_entries', 'stream=duration',
     '-of', 'json',
     filePath,
-  ]);
+  ], options);
   if (result.code !== 0) return null;
   const parsed = parseJson(result.stdout);
   const streams = parsed === null || !Array.isArray(parsed['streams']) ? [] : parsed['streams'];
@@ -350,9 +350,13 @@ export class MediaInputError extends Error {
   override readonly name = 'MediaInputError';
 }
 
-export async function probe(filePath: string): Promise<MediaInfo> {
+export async function probe(filePath: string, options: RunOptions = {}): Promise<MediaInfo> {
   const bytes = sizeOf(filePath);
-  const result = await runBinary('ffprobe', [...PROBE_ARGS, filePath]);
+  // The signal, so Cancel reaches this stage too. Without it a job cancelled
+  // while ffprobe was still reading a very large or very slow file held its
+  // queue slot until ffprobe finished on its own — the row said "Cancelled",
+  // the process kept working, and the next job did not start.
+  const result = await runBinary('ffprobe', [...PROBE_ARGS, filePath], options);
   if (result.code !== 0) {
     throw toolFailure('DropScribe could not read', filePath, result);
   }
@@ -386,7 +390,7 @@ export async function probe(filePath: string): Promise<MediaInfo> {
   }
 
   let seconds = format === null ? null : numberFrom(format['duration']);
-  if (seconds === null || seconds <= 0) seconds = await probeStreamDuration(filePath);
+  if (seconds === null || seconds <= 0) seconds = await probeStreamDuration(filePath, options);
 
   // An unknown duration is survivable and a refusal is not: progress goes
   // indeterminate, `normalizeTranscript` treats a zero duration as "do not
@@ -828,5 +832,42 @@ export async function compressForUpload(
     discard(outPath);
     throw toolFailure('DropScribe could not compress', filePath, result);
   }
+
+  /*
+    One measured retry, for the file whose duration ffprobe could not read.
+
+    `fitBitrate` needs a duration to work out what will fit, and returns the
+    encoding's own rate unchanged when it has none — so a recording that could
+    have been fitted was encoded at full rate and then refused by the provider
+    for being too big. The duration is unknown often enough to matter: a
+    container written to a non-seekable sink, which is what a live recorder or a
+    piped capture produces, never gets its Duration element filled in, and both
+    ffprobe passes come back empty.
+
+    The bytes just written ARE the measurement. At a known constant bitrate,
+    size implies duration, so a second pass can fit properly. Only when we
+    encoded blind AND overshot — a file whose real duration was known and still
+    does not fit is a file the provider genuinely cannot take, and re-encoding
+    it thinner would be guessing on the user's behalf about quality.
+  */
+  const ceiling = ctx.maxBytes ?? null;
+  const written = sizeOf(outPath);
+  if (ceiling !== null && written > ceiling && (ctx.durationMs ?? 0) <= 0) {
+    const kbps = Number.parseInt(bitrate, 10);
+    if (Number.isFinite(kbps) && kbps > 0) {
+      const measuredMs = Math.round(((written * 8) / (kbps * 1000)) * 1000);
+      const fitted = fitBitrate(encoding, measuredMs, ceiling);
+      if (fitted !== bitrate) {
+        const retryArgs = args.map((arg, index) => (index === args.indexOf('-b:a') + 1 ? fitted : arg));
+        discard(outPath);
+        const second = await runBinary('ffmpeg', retryArgs, { signal: ctx.signal });
+        if (second.code !== 0) {
+          discard(outPath);
+          throw toolFailure('DropScribe could not compress', filePath, second);
+        }
+      }
+    }
+  }
+
   return { path: outPath, encoding };
 }

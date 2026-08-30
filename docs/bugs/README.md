@@ -123,6 +123,7 @@ already spent once.
 | [0013](./0013-try-again-on-a-file-with-no-audio.md) | Try again was offered on a file with no audio track | ffmpeg, transcribe/queue | the error was a plain `Error`, so it fell into the branch that marks unknown failures retryable | 2026-08-30 |
 | [0014](./0014-four-in-the-main-process.md) | A "null" in an error, a key with a dash, a cache ahead of its write, and a Remove that came back | providers, services/credentials, main | a helper handed a `Response`, a Latin-1 header, a cache returned by reference, and no ordering between save and clear | 2026-08-30 |
 | [0015](./0015-five-in-the-window.md) | A swallowed export error, a lost number, a green verdict for the wrong key | ui | a render condition, a commit on blur only, a verdict applied without checking what it was about | 2026-08-30 |
+| [0016](./0016-the-last-five.md) | A folder anyone could name, stale export rules, a stranded temp file, a cancel that stopped short, an upload refused for a size it could have fitted | main, queue, engines, ffmpeg | a settings path main never vetted, a snapshot read too early, a sibling of the swept root, a missing signal, and a fit that needed a duration it did not have | 2026-08-30 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:
