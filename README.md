@@ -4,6 +4,25 @@
 desktop app for macOS and Windows that can run entirely on your own machine —
 no account, no subscription, and nothing leaving the computer.
 
+[![CI](https://img.shields.io/github/actions/workflow/status/markdudov/dropscribe/ci.yml?branch=main&label=CI)](https://github.com/markdudov/dropscribe/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/markdudov/dropscribe)](https://github.com/markdudov/dropscribe/releases/latest)
+[![License](https://img.shields.io/github/license/markdudov/dropscribe)](LICENSE)
+
+<!--
+  No downloads badge yet, on purpose.
+
+  `img.shields.io/github/downloads/markdudov/dropscribe/total` works and is
+  honest — it reads GitHub's Releases API, which really does count downloads of
+  release assets. Today it answers 49, and 46 of those are this project's own CI
+  fetching the engine binaries on every build. The `/latest/total` variant
+  answers 1.
+
+  A badge reading "downloads 1" argues against the project more effectively than
+  no badge does. Add it when the number is doing some work:
+
+    [![Downloads](https://img.shields.io/github/downloads/markdudov/dropscribe/total)](https://github.com/markdudov/dropscribe/releases)
+-->
+
 <!--
   A bare github.com/user-attachments URL on its own line. GitHub turns that into
   a real player — poster frame, play button, scrubber, fullscreen.
