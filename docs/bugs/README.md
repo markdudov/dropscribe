@@ -114,6 +114,7 @@ already spent once.
 | [0004](./0004-collapsed-word-timings-made-one-millisecond-cues.md) | Cues one millisecond long, two of them sharing an interval | shared/subtitles | whisper stacks a run of words on one timestamp, and the gap pass crushed cues to `startMs + 1` rather than keep their floor | 2026-08-29 |
 | [0005](./0005-a-third-line-on-the-carried-words.md) | A cue drew a third line at the shipped defaults | shared/subtitles | `flushAtBestBreak` carries words over, and the fit question from 0003 was never asked again about the carry | 2026-08-30 |
 | [0006](./0006-the-chosen-model-was-never-written-down.md) | Opening a file from Finder said there was nothing to transcribe with | ui/store | `setTarget` never persisted `defaultTarget`, which is the only thing main reads when a file arrives from outside the window | 2026-08-30 |
+| [0007](./0007-two-runs-under-one-job-id.md) | Try again could start a second run while the first was still dying | transcribe/queue | `retry()` and `pump()` decided on `job.status`, which goes terminal before the child process does | 2026-08-30 |
 
 <!--
 Rows go newest-last, so the numbers read in order. One line each:

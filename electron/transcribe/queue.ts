@@ -370,6 +370,19 @@ export function createQueue(): JobQueue {
     for (const job of jobs.values()) {
       if (running >= limit) return;
       if (job.status !== 'queued') continue;
+      // A run can still be draining under this id. `cancel()` flips the job to
+      // a terminal status the instant the user clicks, but the child process
+      // only dies when it notices the signal — whisper checks between decode
+      // windows, and one window of a large model runs for several seconds
+      // (engines/whisper-cpp.ts). `retry()` inside that window sets the job
+      // back to 'queued', and without this line the loop would start a SECOND
+      // run under the same id. Both resolve to the same scratch directory,
+      // because `jobTempDir` derives it from the id alone.
+      //
+      // Skipping rather than refusing: the job stays queued, and the `pump()`
+      // in the draining run's own `finally` picks it up the moment the id is
+      // free. The user's click is honoured, just not instantly.
+      if (controllers.has(job.id)) continue;
       running += 1;
       void begin(job);
     }
@@ -392,12 +405,20 @@ export function createQueue(): JobQueue {
     try {
       await runJob(job, controller.signal);
     } catch (error) {
+      // A `retry()` that landed while this run was draining has already set the
+      // job back to 'queued', and that status belongs to the run that has not
+      // started yet — not to this one. Writing a terminal status over it loses
+      // the user's click entirely: `pump()` in the `finally` below then finds
+      // nothing queued, and the row sits at "Cancelled" having been asked to
+      // try again. Whatever this run has to say about how it ended is no longer
+      // interesting once the job has been asked for a second time.
+      const reQueued = job.status === 'queued';
       if (controller.signal.aborted) {
         // Cancelled, not failed. The distinction is the whole reason
         // `JobStatus` has both: a red row with an error message, for something
         // the user themselves asked to stop, teaches them to distrust the app.
-        markCancelled(job);
-      } else {
+        if (!reQueued) markCancelled(job);
+      } else if (!reQueued) {
         update(job, {
           status: 'failed',
           error: describeFailure(error),
@@ -406,11 +427,18 @@ export function createQueue(): JobQueue {
         });
       }
     } finally {
-      controllers.delete(job.id);
-      // Sync, and it never throws — see `services/temp.ts`. Doing it here rather
-      // than inside `runJob` means it also covers the cancellation path and any
-      // failure between the `mkdir` and the first write.
-      cleanupJobTemp(job.id);
+      // Only when this run is still the one registered for the id. The guard in
+      // `pump()` should make a second concurrent run impossible, and this is the
+      // belt to that pair of braces: an unconditional cleanup here deletes
+      // whatever is currently under the id, and `cleanupJobTemp` is a recursive
+      // remove of a directory a newer run may be writing its WAV into.
+      if (controllers.get(job.id) === controller) {
+        controllers.delete(job.id);
+        // Sync, and it never throws — see `services/temp.ts`. Doing it here
+        // rather than inside `runJob` means it also covers the cancellation
+        // path and any failure between the `mkdir` and the first write.
+        cleanupJobTemp(job.id);
+      }
       running -= 1;
       pump();
     }
