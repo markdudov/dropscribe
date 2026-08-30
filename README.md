@@ -9,22 +9,23 @@ no account, no subscription, and nothing leaving the computer.
 
   GitHub's markdown sanitiser strips <video> outright — checked by asking the
   API for the rendered HTML, where only the fallback <img> survived — so a
-  <video> here is a still image that downloads a file when clicked, which is
-  not a demo. The one way to get a real inline player is a
-  github.com/user-attachments URL, and those exist only for files uploaded
+  <video> here is a still image that downloads a file when clicked, which is not
+  a demo. The one way to get a real inline player is a
+  github.com/user-attachments URL, and those exist only for a file uploaded
   through the web interface by hand.
 
-  A GIF plays by itself, everywhere, with nothing to click. It starts after the
-  file picker closes, so the front page shows the app rather than the contents
-  of somebody's Downloads folder, and runs at 6x because the point is the shape
-  of the flow, not the wait.
+  Fifteen seconds at ACTUAL speed, not the whole recording sped up. A GIF of all
+  86 seconds at 1x would be about 25 MB, so the choice is between the whole
+  thing too fast to follow and one part of it at the pace a person actually
+  works. The part shown is the payoff — a job finishing, the transcript opening,
+  the subtitle formats — and the full recording is linked underneath.
 -->
 
-![DropScribe: a file in the queue, transcribing locally, then exported](docs/demo.gif)
+![DropScribe: a local transcription finishing, the transcript opening, and the subtitle formats](docs/demo.gif)
 
-*The queue working, a cloud key tested, and the transcript exported — sped up.
-[The full 86 seconds](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4),
-at normal speed.*
+*A job finishing, the transcript opening, and the same transcript as SRT — at
+actual speed. [The full 86 seconds](https://github.com/markdudov/dropscribe/raw/main/docs/demo.mp4)
+covers dropping the file in, adding a cloud key, and exporting.*
 
 ---
 
